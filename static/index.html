@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1024" />
+  <title>Aula Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #1a1a2e;
+      color: #eee;
+      font-family: 'Segoe UI', sans-serif;
+      width: 1024px;
+      height: 600px;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+      padding: 12px;
+    }
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #16213e;
+      border-radius: 10px;
+      padding: 10px 16px;
+    }
+    header h1 { font-size: 1.3rem; color: #e94560; }
+    header #clock { font-size: 1.1rem; color: #aaa; }
+    .card {
+      background: #16213e;
+      border-radius: 10px;
+      padding: 14px;
+      overflow-y: auto;
+    }
+    .card h2 { font-size: 0.95rem; color: #e94560; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .item { padding: 6px 0; border-bottom: 1px solid #0f3460; font-size: 0.85rem; }
+    .item:last-child { border-bottom: none; }
+    .item .title { font-weight: 600; }
+    .item .meta { color: #888; font-size: 0.75rem; margin-top: 2px; }
+    .unread .title { color: #e94560; }
+    .loading { color: #555; font-style: italic; font-size: 0.85rem; }
+
+    /* Session banner */
+    #session-banner {
+      display: none;
+      grid-column: 1 / -1;
+      background: #e94560;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    #session-banner b { font-size: 1rem; }
+
+    /* Refresh modal */
+    #modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #modal-overlay.open { display: flex; }
+    #modal {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 24px;
+      width: 480px;
+    }
+    #modal h2 { color: #e94560; margin-bottom: 12px; }
+    #modal p { font-size: 0.82rem; color: #aaa; margin-bottom: 16px; line-height: 1.5; }
+    #modal input {
+      width: 100%;
+      background: #0f3460;
+      border: none;
+      border-radius: 6px;
+      color: #eee;
+      padding: 8px 10px;
+      font-size: 0.85rem;
+      margin-bottom: 10px;
+    }
+    #modal .actions { display: flex; gap: 10px; margin-top: 6px; }
+    #modal button {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    #btn-save { background: #e94560; color: #fff; }
+    #btn-cancel { background: #0f3460; color: #aaa; }
+    #modal-msg { font-size: 0.8rem; color: #aaa; margin-top: 8px; min-height: 18px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📚 Aula</h1>
+    <div id="clock"></div>
+  </header>
+
+  <div id="session-banner" onclick="openModal()">
+    <b>⚠️ Session udløbet</b> — Klik her for at opdatere cookies
+  </div>
+
+  <div class="card">
+    <h2>📬 Beskeder</h2>
+    <div id="messages" class="loading">Henter...</div>
+  </div>
+
+  <div class="card">
+    <h2>📅 Kalender</h2>
+    <div id="calendar" class="loading">Henter...</div>
+  </div>
+
+  <!-- Refresh modal -->
+  <div id="modal-overlay">
+    <div id="modal">
+      <h2>🔄 Opdater session</h2>
+      <p>
+        Log ind på <b>aula.dk</b>, åbn DevTools (F12) → Network → filter på <code>getProfileContext</code> → reload siden.<br/>
+        Kopiér cookie-værdierne fra Request Headers.
+      </p>
+      <input id="input-phpsessid" placeholder="PHPSESSID" />
+      <input id="input-csrf" placeholder="Csrfp-Token" />
+      <div id="modal-msg"></div>
+      <div class="actions">
+        <button id="btn-cancel" onclick="closeModal()">Annuller</button>
+        <button id="btn-save" onclick="saveSession()">Gem</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Clock
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent =
+        now.toLocaleDateString('da-DK', {weekday:'long', day:'numeric', month:'long'}) +
+        '  ' + now.toLocaleTimeString('da-DK', {hour:'2-digit', minute:'2-digit'});
+    }
+    updateClock();
+    setInterval(updateClock, 30000);
+
+    // Session check
+    async function checkSession() {
+      const res = await fetch('/api/status');
+      const data = await res.json();
+      document.getElementById('session-banner').style.display = data.session_valid ? 'none' : 'block';
+      return data.session_valid;
+    }
+
+    // Modal
+    function openModal() { document.getElementById('modal-overlay').classList.add('open'); }
+    function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+    async function saveSession() {
+      const phpsessid = document.getElementById('input-phpsessid').value.trim();
+      const csrf_token = document.getElementById('input-csrf').value.trim();
+      const msg = document.getElementById('modal-msg');
+      if (!phpsessid || !csrf_token) { msg.textContent = 'Udfyld begge felter.'; return; }
+      msg.textContent = 'Gemmer...';
+      try {
+        const res = await fetch('/api/refresh-session', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({phpsessid, csrf_token})
+        });
+        if (res.ok) {
+          closeModal();
+          document.getElementById('session-banner').style.display = 'none';
+          loadAll();
+        } else {
+          msg.textContent = 'Fejl: Cookies afvist af Aula.';
+        }
+      } catch(e) {
+        msg.textContent = 'Netværksfejl: ' + e.message;
+      }
+    }
+
+    // Data loading
+    async function loadMessages() {
+      const el = document.getElementById('messages');
+      try {
+        const res = await fetch('/api/messages');
+        if (res.status === 401) { el.textContent = 'Session udløbet'; return; }
+        const threads = await res.json();
+        if (!threads.length) { el.textContent = 'Ingen beskeder'; return; }
+        el.innerHTML = threads.slice(0, 8).map(t => `
+          <div class="item ${t.read ? '' : 'unread'}">
+            <div class="title">${t.subject || '(ingen emne)'}</div>
+            <div class="meta">${t.read ? '✓ Læst' : '● Ulæst'}</div>
+          </div>`).join('');
+      } catch(e) { el.textContent = 'Fejl: ' + e.message; }
+    }
+
+    async function loadCalendar() {
+      const el = document.getElementById('calendar');
+      try {
+        const profileRes = await fetch('/api/profile');
+        if (profileRes.status === 401) { el.textContent = 'Session udløbet'; return; }
+        const profile = await profileRes.json();
+        const ids = (profile?.data?.institutionProfiles || []).map(p => p.id).join(',');
+        const res = await fetch('/api/calendar?inst_profile_ids=' + ids);
+        const events = await res.json();
+        if (!events.length) { el.textContent = 'Ingen begivenheder'; return; }
+        el.innerHTML = events.slice(0, 8).map(e => `
+          <div class="item">
+            <div class="title">${e.title || e.summary || '(ingen titel)'}</div>
+            <div class="meta">${e.startDateTime ? new Date(e.startDateTime).toLocaleString('da-DK', {weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : ''}</div>
+          </div>`).join('');
+      } catch(e) { el.textContent = 'Fejl: ' + e.message; }
+    }
+
+    async function loadAll() {
+      const valid = await checkSession();
+      if (valid) { loadMessages(); loadCalendar(); }
+    }
+
+    loadAll();
+    setInterval(loadAll, 5 * 60 * 1000);
+  </script>
+</body>
+</html>
