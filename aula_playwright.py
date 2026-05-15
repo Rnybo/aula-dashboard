@@ -154,7 +154,8 @@ class AulaPlaywright:
                             logger.info("Identity selector found, clicking private person...")
                             # Try clicking the name row directly first
                             try:
-                                await page.locator('li, div, button, a').filter(has_text="Rasmus Fogh Nybo").first.click(timeout=5000)
+                                name = MITID_IDENTITY or "Rasmus Fogh Nybo"
+                                await page.locator('li, div, button, a').filter(has_text=name).first.click(timeout=5000)
                                 logger.info("Clicked identity by name")
                             except Exception:
                                 # Fall back to clicking the privatperson heading
