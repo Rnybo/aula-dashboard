@@ -72,7 +72,7 @@ class AulaPlaywright:
                 # Step 1: Navigate to Aula
                 logger.info("Step 1: Navigating to aula.dk...")
                 await page.goto(AULA_URL, wait_until="domcontentloaded")
-                await page.wait_for_timeout(1500)
+                await page.wait_for_timeout(3000)
                 await self._screenshot(page, "01_login_page")
 
                 # Step 2: Click MitID on Aula login page
@@ -90,14 +90,14 @@ class AulaPlaywright:
                 # Step 4: Click Fortsæt til login
                 logger.info("Step 4: Clicking Fortsæt til login...")
                 await page.get_by_role("button", name="FORTSÆT TIL LOGIN").click(timeout=10000)
-                await page.wait_for_timeout(2000)
+                await page.wait_for_timeout(4000)
                 await self._screenshot(page, "04_after_fortsaet")
 
                 # Step 5: Fill username in MitID iframe
                 logger.info("Step 5: Filling username...")
                 mitid_frame = page.frame(url=lambda u: "mitid" in u)
                 target = mitid_frame if mitid_frame else page
-                await target.wait_for_selector('.mitid-core-user__input', state='attached', timeout=15000)
+                await target.wait_for_selector('.mitid-core-user__input', state='attached', timeout=30000)
                 await target.evaluate('''
                     const containers = Array.from(document.querySelectorAll(".mitid-core-user__input"));
                     const visible = containers.find(el => el.offsetParent !== null);
