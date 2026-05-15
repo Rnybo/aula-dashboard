@@ -2,49 +2,45 @@
 <html lang="da">
 <head>
   <meta charset="UTF-8" />
-  <title>Aula Bookmarklet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aula Session Sync</title>
   <style>
-    body { font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #1a1a2e; color: #eee; }
-    h1 { color: #e94560; }
-    p { color: #aaa; line-height: 1.6; }
-    .box { background: #16213e; border-radius: 10px; padding: 20px; margin: 20px 0; }
-    .bookmarklet {
-      display: inline-block;
-      background: #e94560;
-      color: #fff;
-      padding: 12px 20px;
-      border-radius: 8px;
-      text-decoration: none;
-      font-weight: bold;
-      font-size: 1rem;
-      cursor: move;
-    }
-    code { background: #0f3460; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
-    ol li { margin-bottom: 10px; color: #aaa; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; padding: 24px 20px; max-width: 500px; margin: 0 auto; }
+    h1 { color: #e94560; font-size: 1.4rem; margin-bottom: 8px; }
+    p { color: #aaa; line-height: 1.6; font-size: 0.9rem; margin-bottom: 16px; }
+    .card { background: #16213e; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .bookmarklet { display: block; background: #e94560; color: #fff; padding: 14px 20px; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 1rem; text-align: center; cursor: move; margin-bottom: 8px; }
+    .hint { font-size: 0.78rem; color: #666; text-align: center; }
+    ol li { margin-bottom: 10px; color: #aaa; font-size: 0.88rem; }
+    ol { padding-left: 20px; }
+    .step-note { background: #0f3460; border-radius: 8px; padding: 12px 16px; font-size: 0.82rem; color: #aaa; margin-top: 12px; line-height: 1.6; }
+    b { color: #eee; }
   </style>
 </head>
 <body>
-  <h1>🔄 Aula Session Opdatering</h1>
+  <h1>🔄 Aula Session Sync</h1>
 
-  <div class="box">
-    <p>Træk denne knap til din bogmærkelinje:</p>
-    <br/>
+  <div class="card">
+    <p>Gem dette bogmærke i din browser. Klik det mens du er på aula.dk for automatisk at opdatere din dashboard-session.</p>
     <a class="bookmarklet" id="bookmarklet-link" href="">📌 Opdater Aula Session</a>
-    <br/><br/>
-    <p style="font-size:0.8rem">Eller højreklik → Tilføj til bogmærker</p>
+    <p class="hint">Tryk og hold (mobil) eller træk til bogmærkelinje (PC)</p>
   </div>
 
-  <div class="box">
-    <h2 style="color:#e94560">Sådan bruges det</h2>
+  <div class="card">
+    <h2 style="color:#e94560; margin-bottom:12px;">Sådan bruges det</h2>
     <ol>
-      <li>Log ind på <a href="https://www.aula.dk" style="color:#e94560">aula.dk</a></li>
-      <li>Klik på bogmærket <strong>"Opdater Aula Session"</strong></li>
-      <li>Færdig — sessionen opdateres automatisk</li>
+      <li>Log ind på <b>aula.dk</b> på din telefon</li>
+      <li>Åbn bogmærker og tryk <b>"Opdater Aula Session"</b></li>
+      <li>Du ser en grøn bekræftelse</li>
+      <li>Dashboard opdateres automatisk inden for 10 sekunder</li>
     </ol>
+    <div class="step-note">
+      💡 <b>Tip:</b> Du behøver ikke gøre noget på dashboardet — det opdager selv den nye session.
+    </div>
   </div>
 
   <script>
-    // Inject the dashboard URL dynamically so the bookmarklet always points to this server
     const dashboardUrl = window.location.origin;
     const apiKey = '%%API_KEY%%';
 
@@ -66,7 +62,7 @@
           body: JSON.stringify({ phpsessid, csrf_token: csrf })
         })
         .then(r => r.json())
-        .then(d => alert(d.ok ? '✅ Session opdateret!' : '❌ Fejl: ' + JSON.stringify(d)))
+        .then(d => alert(d.ok ? '✅ Session opdateret! Dashboard opdaterer om få sekunder.' : '❌ Fejl: ' + JSON.stringify(d)))
         .catch(e => alert('❌ Netværksfejl: ' + e.message));
       })();
     `.trim().replace(/\s+/g, ' ');

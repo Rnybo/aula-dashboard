@@ -107,8 +107,8 @@
     <div id="clock"></div>
   </header>
 
-  <div id="session-banner" onclick="window.open('/bookmarklet', '_blank')">
-    <b>⚠️ Session udløbet</b> — Gå til aula.dk, klik dit bogmærke, og kom tilbage
+  <div id="session-banner" onclick="window.open('https://www.aula.dk', '_blank')">
+    <b>⚠️ Session udløbet</b> — Klik for at logge ind på Aula — du bliver automatisk sendt tilbage
   </div>
 
   <div class="card">
@@ -236,14 +236,33 @@
       } catch(e) { el.textContent = 'Fejl: ' + e.message; }
     }
 
+    let pollTimer = null;
+    let sessionWasExpired = false;
+
     async function loadAll() {
       await initConfig();
       const valid = await checkSession();
-      if (valid) { loadMessages(); loadCalendar(); }
+      if (valid) {
+        if (sessionWasExpired) {
+          // Session just recovered — reload the page to refresh all data
+          window.location.reload();
+          return;
+        }
+        loadMessages();
+        loadCalendar();
+        schedulePoll(5 * 60 * 1000); // 5 min when healthy
+      } else {
+        sessionWasExpired = true;
+        schedulePoll(10 * 1000); // 10 sec when expired
+      }
+    }
+
+    function schedulePoll(ms) {
+      clearTimeout(pollTimer);
+      pollTimer = setTimeout(loadAll, ms);
     }
 
     loadAll();
-    setInterval(loadAll, 5 * 60 * 1000);
   </script>
 </body>
 </html>
