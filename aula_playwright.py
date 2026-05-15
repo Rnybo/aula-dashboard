@@ -98,19 +98,23 @@ class AulaPlaywright:
                 # Wait for iframe to appear
                 await page.wait_for_timeout(3000)
                 mitid_frame = page.frame(url=lambda u: "mitid" in u)
-                logger.info(f"MitID frame: {mitid_frame.url if mitid_frame else 'NOT FOUND'}")
-                logger.info(f"All frames: {[f.url for f in page.frames]}")
+                print(f"MitID frame: {mitid_frame.url if mitid_frame else 'NOT FOUND'}", flush=True)
+                print(f"All frames: {[f.url for f in page.frames]}", flush=True)
                 target = mitid_frame if mitid_frame else page
                 await target.wait_for_selector('.mitid-core-user__input', state='attached', timeout=30000)
+                # Focus via JS then also try clicking the container
                 await target.evaluate('''
                     const containers = Array.from(document.querySelectorAll(".mitid-core-user__input"));
                     const visible = containers.find(el => el.offsetParent !== null);
                     if (visible) {
                         const input = visible.querySelector("input");
-                        if (input) input.focus();
+                        if (input) { input.click(); input.focus(); }
                     }
                 ''')
-                await page.keyboard.type(MITID_USERNAME, delay=50)
+                await page.wait_for_timeout(500)
+                # Type using page keyboard (works regardless of frame focus)
+                await page.keyboard.type(MITID_USERNAME, delay=80)
+                print(f"Typed username: {MITID_USERNAME[:3]}***", flush=True)
                 await self._screenshot(page, "05_after_username")
                 await page.keyboard.press('Enter')
 
