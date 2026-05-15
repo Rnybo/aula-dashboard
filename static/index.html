@@ -138,6 +138,21 @@
   </div>
 
   <script>
+    let API_KEY = '';
+
+    async function initConfig() {
+      const res = await fetch('/api/config');
+      const data = await res.json();
+      API_KEY = data.api_key || '';
+    }
+
+    function apiFetch(url, options = {}) {
+      return fetch(url, {
+        ...options,
+        headers: { ...(options.headers || {}), 'x-api-key': API_KEY }
+      });
+    }
+
     // Clock
     function updateClock() {
       const now = new Date();
@@ -150,7 +165,7 @@
 
     // Session check
     async function checkSession() {
-      const res = await fetch('/api/status');
+      const res = await apiFetch('/api/status');
       const data = await res.json();
       document.getElementById('session-banner').style.display = data.session_valid ? 'none' : 'block';
       return data.session_valid;
@@ -167,7 +182,7 @@
       if (!phpsessid || !csrf_token) { msg.textContent = 'Udfyld begge felter.'; return; }
       msg.textContent = 'Gemmer...';
       try {
-        const res = await fetch('/api/refresh-session', {
+        const res = await apiFetch('/api/refresh-session', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({phpsessid, csrf_token})
@@ -188,7 +203,7 @@
     async function loadMessages() {
       const el = document.getElementById('messages');
       try {
-        const res = await fetch('/api/messages');
+        const res = await apiFetch('/api/messages');
         if (res.status === 401) { el.textContent = 'Session udløbet'; return; }
         const threads = await res.json();
         if (!threads.length) { el.textContent = 'Ingen beskeder'; return; }
@@ -203,11 +218,11 @@
     async function loadCalendar() {
       const el = document.getElementById('calendar');
       try {
-        const profileRes = await fetch('/api/profile');
+        const profileRes = await apiFetch('/api/profile');
         if (profileRes.status === 401) { el.textContent = 'Session udløbet'; return; }
         const profile = await profileRes.json();
         const ids = (profile?.data?.institutionProfiles || []).map(p => p.id).join(',');
-        const res = await fetch('/api/calendar?inst_profile_ids=' + ids);
+        const res = await apiFetch('/api/calendar?inst_profile_ids=' + ids);
         const events = await res.json();
         if (!events.length) { el.textContent = 'Ingen begivenheder'; return; }
         el.innerHTML = events.slice(0, 8).map(e => `
@@ -219,6 +234,7 @@
     }
 
     async function loadAll() {
+      await initConfig();
       const valid = await checkSession();
       if (valid) { loadMessages(); loadCalendar(); }
     }

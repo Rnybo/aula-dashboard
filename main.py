@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from aula_client import AulaClient
@@ -10,20 +11,38 @@ load_dotenv()
 app = FastAPI()
 client = AulaClient()
 
+API_KEY = os.getenv("API_KEY", "")
+
+
+def check_api_key(request: Request):
+    if not API_KEY:
+        return  # No key configured, allow all (dev mode)
+    key = request.headers.get("x-api-key", "")
+    if key != API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
 
 class SessionUpdate(BaseModel):
     phpsessid: str
     csrf_token: str
 
 
+@app.get("/api/config")
+def config():
+    """Expose API key to the frontend (served server-side, not in static files)."""
+    return {"api_key": API_KEY}
+
+
 @app.get("/api/status")
-def status():
+def status(request: Request):
+    check_api_key(request)
     valid = client.check_session()
     return {"session_valid": valid}
 
 
 @app.post("/api/refresh-session")
-def refresh_session(body: SessionUpdate):
+def refresh_session(request: Request, body: SessionUpdate):
+    check_api_key(request)
     client.update_credentials(body.phpsessid, body.csrf_token)
     valid = client.check_session()
     if not valid:
@@ -32,7 +51,8 @@ def refresh_session(body: SessionUpdate):
 
 
 @app.get("/api/profile")
-def profile():
+def profile(request: Request):
+    check_api_key(request)
     try:
         return client.get_profile()
     except PermissionError:
@@ -42,7 +62,8 @@ def profile():
 
 
 @app.get("/api/messages")
-def messages(page: int = 0):
+def messages(request: Request, page: int = 0):
+    check_api_key(request)
     try:
         threads = client.get_threads(page)
         return [{"id": t["id"], "subject": t.get("subject", ""), "read": t.get("read", True)} for t in threads]
@@ -53,7 +74,8 @@ def messages(page: int = 0):
 
 
 @app.get("/api/messages/{thread_id}")
-def thread(thread_id: int):
+def thread(request: Request, thread_id: int):
+    check_api_key(request)
     try:
         return client.get_messages_for_thread(thread_id)
     except PermissionError:
@@ -63,7 +85,8 @@ def thread(thread_id: int):
 
 
 @app.get("/api/calendar")
-def calendar(inst_profile_ids: str = ""):
+def calendar(request: Request, inst_profile_ids: str = ""):
+    check_api_key(request)
     try:
         ids = [int(i) for i in inst_profile_ids.split(",") if i]
         return client.get_calendar_events(ids)
