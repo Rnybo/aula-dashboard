@@ -111,7 +111,7 @@ class AulaPlaywright:
                         if (input) { input.click(); input.focus(); }
                     }
                 ''')
-                await page.wait_for_timeout(500)
+                await page.wait_for_timeout(1000)
                 # Type using page keyboard (works regardless of frame focus)
                 await page.keyboard.type(MITID_USERNAME, delay=80)
                 print(f"Typed username: {MITID_USERNAME[:3]}***", flush=True)
@@ -120,7 +120,7 @@ class AulaPlaywright:
 
                 # Step 6: Wait for approval screen
                 logger.info("Step 6: Waiting for MitID approval screen...")
-                await page.wait_for_timeout(2000)
+                await page.wait_for_timeout(5000)
                 error_text = await target.evaluate("""
                     () => {
                         const err = document.querySelector('.mitid-notification--error');
