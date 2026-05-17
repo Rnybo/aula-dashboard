@@ -100,23 +100,55 @@ class AulaPlaywright:
                 # Step 5: Fill username
                 logger.info("Step 5: Filling username...")
                 await page.wait_for_timeout(3000)
-                mitid_frame = page.frame(url=lambda u: "mitid" in u)
-                target = mitid_frame if mitid_frame else page
-                await target.wait_for_selector('.mitid-core-user__input', state='attached', timeout=30000)
-                # Use Playwright native click to properly focus the iframe input
-                try:
-                    await target.locator('.mitid-core-user__input').first.click(timeout=5000)
-                except Exception:
-                    await target.evaluate('''
-                        const containers = Array.from(document.querySelectorAll(".mitid-core-user__input"));
-                        const visible = containers.find(el => el.offsetParent !== null);
-                        if (visible) {
-                            const input = visible.querySelector("input");
-                            if (input) { input.click(); input.focus(); }
-                        }
-                    ''')
-                await page.wait_for_timeout(1000)
-                await page.keyboard.type(MITID_USERNAME, delay=80)
+                await self._screenshot(page, "05_before_username")
+
+                # Try to find the username input across page and all frames
+                target = None
+                username_input = None
+                selectors = [
+                    'input[autocomplete="username"]',
+                    'input[type="text"]',
+                    'input[name="username"]',
+                    '.mitid-core-user__input input',
+                    '.mitid-core-user__input',
+                    'input[placeholder]',
+                ]
+
+                # Check main page first
+                for sel in selectors:
+                    try:
+                        el = page.locator(sel).first
+                        if await el.is_visible(timeout=2000):
+                            target = page
+                            username_input = el
+                            logger.info(f"Found username input on main page with: {sel}")
+                            break
+                    except Exception:
+                        pass
+
+                # Check all frames
+                if not username_input:
+                    for frame in page.frames:
+                        for sel in selectors:
+                            try:
+                                el = frame.locator(sel).first
+                                if await el.is_visible(timeout=1000):
+                                    target = frame
+                                    username_input = el
+                                    logger.info(f"Found username input in frame '{frame.url}' with: {sel}")
+                                    break
+                            except Exception:
+                                pass
+                        if username_input:
+                            break
+
+                if not username_input:
+                    await page.screenshot(path="debug_no_input.png")
+                    raise Exception("Could not find username input field — check debug_no_input.png")
+
+                await username_input.click()
+                await page.wait_for_timeout(500)
+                await username_input.fill(MITID_USERNAME)
                 await self._screenshot(page, "05_after_username")
                 await page.keyboard.press('Enter')
 
