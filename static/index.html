@@ -413,14 +413,14 @@
       currentAlbumId = null;
       const el = document.getElementById('gallery-content');
       if (!albums.length) { el.textContent = 'Ingen albums fundet'; return; }
-      el.innerHTML = `<div class="albums-grid">${albums.map(a => {
+      el.innerHTML = `<div class="albums-grid">${albums.map((a, idx) => {
         const thumb = a.thumbnailsUrls?.[0];
         const isVideo = thumb && (thumb.includes('.mov') || thumb.includes('.mp4'));
         const date = a.creationDate ? new Date(a.creationDate).toLocaleDateString('da-DK', {day:'numeric',month:'short',year:'numeric'}) : '';
         const thumbHtml = thumb && !isVideo
           ? `<img class="album-thumb" src="${thumb}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=album-thumb-placeholder>📷</div>'">`
           : `<div class="album-thumb-placeholder">${isVideo?'🎥':'📷'}</div>`;
-        return `<div class="album-card" onclick="openAlbum(${JSON.stringify(a.id)}, ${JSON.stringify(a.title)})">
+        return `<div class="album-card" data-idx="${idx}" onclick="openAlbumByIdx(this)">
           ${thumbHtml}
           <div class="album-info">
             <div class="album-title">${a.title||'Album'}</div>
@@ -428,6 +428,14 @@
           </div>
         </div>`;
       }).join('')}</div>`;
+      // Store albums on the element for retrieval by index
+      document.getElementById('gallery-content')._albums = albums;
+    }
+
+    function openAlbumByIdx(el) {
+      const albums = document.getElementById('gallery-content')._albums || [];
+      const a = albums[parseInt(el.dataset.idx)];
+      if (a) openAlbum(a.id, a.title);
     }
 
     async function openAlbum(albumId, title) {
