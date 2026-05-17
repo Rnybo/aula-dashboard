@@ -109,10 +109,10 @@ class AulaPlaywright:
                 logger.info(f"Frames: {[f.url for f in page.frames]}")
 
                 selectors = [
+                    'input.mitid-core-user__user-id',
                     'input[autocomplete="username"]',
                     'input[type="text"]',
                     'input[name="username"]',
-                    '.mitid-core-user__input input',
                     'input[placeholder]',
                 ]
 
@@ -158,7 +158,8 @@ class AulaPlaywright:
 
                 await username_input.click()
                 await page.wait_for_timeout(300)
-                await username_input.fill(MITID_USERNAME)
+                # MitID uses a split character input (username0-9), type char by char
+                await page.keyboard.type(MITID_USERNAME, delay=100)
                 await self._screenshot(page, "05_after_username")
                 await page.keyboard.press('Enter')
 
