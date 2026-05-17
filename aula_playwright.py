@@ -4,7 +4,6 @@ import os
 import sys
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
-# Force stdout to flush immediately
 sys.stdout.reconfigure(line_buffering=True)
 
 logger = logging.getLogger("uvicorn.error")
@@ -13,6 +12,7 @@ AULA_URL = "https://www.aula.dk"
 MITID_USERNAME = os.getenv("MITID_USERNAME", "")
 MITID_IDENTITY = os.getenv("MITID_IDENTITY", "")
 DEBUG = os.getenv("PLAYWRIGHT_DEBUG", "false").lower() == "true"
+DEBUG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "debug_screenshots")
 
 
 class AulaLoginState:
@@ -44,7 +44,6 @@ class AulaPlaywright:
         t.start()
 
     def _run_in_thread(self):
-        import sys
         if sys.platform == "win32":
             loop = asyncio.ProactorEventLoop()
         else:
@@ -56,8 +55,13 @@ class AulaPlaywright:
             loop.close()
 
     async def _screenshot(self, page, name):
-        if DEBUG:
-            await page.screenshot(path=f"debug_{name}.png")
+        try:
+            os.makedirs(DEBUG_DIR, exist_ok=True)
+            path = os.path.join(DEBUG_DIR, f"{name}.png")
+            await page.screenshot(path=path, full_page=False)
+            logger.info(f"Screenshot: {path}")
+        except Exception as e:
+            logger.info(f"Screenshot failed ({name}): {e}")
 
     async def _do_login(self):
         self.state = AulaLoginState.WAITING_FOR_MITID
@@ -97,57 +101,63 @@ class AulaPlaywright:
                 await page.wait_for_timeout(4000)
                 await self._screenshot(page, "04_after_fortsaet")
 
-                # Step 5: Fill username
+                # Step 5: Find and fill username
                 logger.info("Step 5: Filling username...")
-                await page.wait_for_timeout(3000)
-                await self._screenshot(page, "05_before_username")
+                await page.wait_for_timeout(2000)
 
-                # Try to find the username input across page and all frames
-                target = None
-                username_input = None
+                # Log all frames for diagnostics
+                logger.info(f"Frames: {[f.url for f in page.frames]}")
+
                 selectors = [
                     'input[autocomplete="username"]',
                     'input[type="text"]',
                     'input[name="username"]',
                     '.mitid-core-user__input input',
-                    '.mitid-core-user__input',
                     'input[placeholder]',
                 ]
 
-                # Check main page first
+                username_input = None
+                # Search main page
                 for sel in selectors:
                     try:
                         el = page.locator(sel).first
-                        if await el.is_visible(timeout=2000):
-                            target = page
+                        if await el.is_visible(timeout=1500):
                             username_input = el
-                            logger.info(f"Found username input on main page with: {sel}")
+                            logger.info(f"Found on main page: {sel}")
                             break
                     except Exception:
                         pass
 
-                # Check all frames
+                # Search all frames
                 if not username_input:
                     for frame in page.frames:
                         for sel in selectors:
                             try:
                                 el = frame.locator(sel).first
                                 if await el.is_visible(timeout=1000):
-                                    target = frame
                                     username_input = el
-                                    logger.info(f"Found username input in frame '{frame.url}' with: {sel}")
+                                    logger.info(f"Found in frame [{frame.url[:80]}]: {sel}")
                                     break
                             except Exception:
                                 pass
                         if username_input:
                             break
 
+                # Fallback: dump all inputs for diagnosis
                 if not username_input:
-                    await page.screenshot(path="debug_no_input.png")
-                    raise Exception("Could not find username input field — check debug_no_input.png")
+                    await self._screenshot(page, "05_no_input_found")
+                    all_inputs = await page.evaluate("""
+                        () => Array.from(document.querySelectorAll('input')).map(i => ({
+                            type: i.type, name: i.name, placeholder: i.placeholder,
+                            autocomplete: i.autocomplete, visible: i.offsetParent !== null,
+                            cls: i.className
+                        }))
+                    """)
+                    logger.info(f"All inputs on page: {all_inputs}")
+                    raise Exception(f"Could not find username input. Inputs found: {all_inputs}")
 
                 await username_input.click()
-                await page.wait_for_timeout(500)
+                await page.wait_for_timeout(300)
                 await username_input.fill(MITID_USERNAME)
                 await self._screenshot(page, "05_after_username")
                 await page.keyboard.press('Enter')
@@ -155,74 +165,59 @@ class AulaPlaywright:
                 # Step 6: Wait for approval screen
                 logger.info("Step 6: Waiting for MitID approval screen...")
                 await page.wait_for_timeout(5000)
-                error_text = await target.evaluate("""
-                    () => {
-                        const err = document.querySelector('.mitid-notification--error');
-                        return err && err.offsetParent !== null ? err.innerText : null;
-                    }
-                """)
-                if error_text:
-                    raise Exception(f"MitID error: {error_text.strip()}")
                 await self._screenshot(page, "06_approval_screen")
 
-                # Step 7: Capture approval/QR screen and show on dashboard
+                # Step 7: Capture and show approval screen
                 logger.info("Step 7: Capturing screen for dashboard...")
                 import base64
                 try:
-                    qr_bytes = await target.locator('.mitid-core-section').screenshot(timeout=5000)
+                    qr_bytes = await page.locator('.mitid-core-section').screenshot(timeout=5000)
                 except Exception:
-                    qr_bytes = await page.screenshot(clip={'x': 150, 'y': 150, 'width': 400, 'height': 450})
+                    qr_bytes = await page.screenshot()
                 self.qr_image = base64.b64encode(qr_bytes).decode('utf-8')
                 self.state = AulaLoginState.SHOW_QR
                 logger.info("Approval screen shown on dashboard")
 
-                # Step 8: Keep refreshing until approved (3 min)
+                # Step 8: Poll until approved (3 min)
                 logger.info("Step 8: Waiting for approval (3 min)...")
                 deadline = 180
                 elapsed = 0
                 while elapsed < deadline:
-                    if AULA_URL in page.url and "/login" not in page.url:
+                    if "aula.dk" in page.url and "/login" not in page.url:
                         break
 
-                    # Check for identity selector — it's an <a class="list-link"> element
+                    # Check for identity selector
                     try:
                         private_visible = await page.evaluate("""
-                            () => {
-                                const els = Array.from(document.querySelectorAll('*'));
-                                return els.some(el => el.offsetParent !== null && el.textContent.includes('privatperson'));
-                            }
+                            () => Array.from(document.querySelectorAll('*')).some(
+                                el => el.offsetParent !== null && el.textContent.includes('privatperson')
+                            )
                         """)
                         if private_visible:
-                            logger.info("Identity selector found, clicking private person...")
-                            name = MITID_IDENTITY or "Rasmus Fogh Nybo"
+                            logger.info("Identity selector found, clicking...")
+                            name = MITID_IDENTITY or ""
                             try:
-                                # The identity is an <a class="list-link"> that triggers JS form submit
                                 await page.locator(f'a.list-link:has-text("{name}")').click(timeout=5000)
-                                logger.info(f"Clicked list-link for {name}")
+                                logger.info(f"Clicked identity: {name}")
                             except Exception:
-                                # Fallback: click first list-link (first = private person)
                                 await page.locator('a.list-link').first.click(timeout=5000)
-                                logger.info("Clicked first list-link")
+                                logger.info("Clicked first identity")
                             await page.wait_for_load_state("networkidle")
-                            try:
-                                await page.wait_for_url(f"{AULA_URL}/**", timeout=20000)
-                                await page.wait_for_load_state("networkidle")
-                            except Exception:
-                                pass
                             break
                     except Exception as e:
                         logger.info(f"Identity check: {e}")
 
+                    # Refresh QR/approval image
                     try:
-                        qr_bytes = await target.locator('.mitid-core-section').screenshot(timeout=2000)
+                        qr_bytes = await page.locator('.mitid-core-section').screenshot(timeout=2000)
                     except Exception:
-                        qr_bytes = await page.screenshot(clip={'x': 0, 'y': 0, 'width': 500, 'height': 500})
+                        qr_bytes = await page.screenshot()
                     self.qr_image = base64.b64encode(qr_bytes).decode('utf-8')
                     await page.wait_for_timeout(3000)
                     elapsed += 3
 
+                # Wait for final Aula redirect
                 await page.wait_for_load_state("networkidle")
-                # Ensure we are fully on Aula before extracting cookies
                 if "aula.dk" not in page.url or "login" in page.url:
                     logger.info(f"Waiting for Aula redirect, current URL: {page.url}")
                     await page.wait_for_url(f"{AULA_URL}/**", timeout=20000)
@@ -234,12 +229,10 @@ class AulaPlaywright:
                 logger.info("Step 9: Extracting cookies...")
                 cookies = await context.cookies()
                 logger.info(f"Cookie names: {[c['name'] for c in cookies]}")
-
                 phpsessid = next((c["value"] for c in cookies if c["name"] == "PHPSESSID"), None)
                 csrf_token = next((c["value"] for c in cookies if c["name"] == "Csrfp-Token"), None)
-
                 if not phpsessid or not csrf_token:
-                    raise ValueError(f"Missing cookies after login. Got: {[c['name'] for c in cookies]}")
+                    raise ValueError(f"Missing cookies. Got: {[c['name'] for c in cookies]}")
 
                 await browser.close()
                 self.on_success(phpsessid, csrf_token)
