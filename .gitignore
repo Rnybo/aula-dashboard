@@ -1,7 +1,5 @@
 .env
 session.json
-token_photos.json
-credentials.json
 __pycache__/
 *.pyc
 venv312/
