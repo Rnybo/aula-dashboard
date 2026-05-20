@@ -415,7 +415,7 @@
       try {
         const [albums, userMedia] = await Promise.all([
           apiFetch(`/api/gallery/albums?inst_profile_ids=${childIds}`).then(r => r.json()),
-          apiFetch(`/api/gallery/user-media?inst_profile_ids=${childIds}&limit=1`).then(r => r.json()).catch(() => null),
+          apiFetch(`/api/gallery/user-media?inst_profile_ids=${childIds}&limit=4`).then(r => r.json()).catch(() => null),
         ]);
         renderAlbums(albums, userMedia);
       } catch(e) { el.textContent = 'Fejl: ' + e.message; }
@@ -426,8 +426,9 @@
       currentAlbumId = null;
       const el = document.getElementById('gallery-content');
 
-      // Build synthetic "Medier af mine børn" album
-      const userMediaThumb = userMedia?.results?.[0];
+      // Build synthetic "Medier af mine børn" album — pick first item with a usable thumbnail
+      const results = userMedia?.results || [];
+      const userMediaThumb = results.find(m => m.largeThumbnailUrl || m.thumbnailUrl) || results[0];
       const userMediaCard = `<div class="album-card" onclick="openUserMedia()">
         ${userMediaThumb
           ? `<img class="album-thumb" src="${userMediaThumb.largeThumbnailUrl||userMediaThumb.thumbnailUrl||''}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=album-thumb-placeholder>👶</div>'">`
