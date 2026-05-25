@@ -114,7 +114,6 @@ cd ~/aula-dashboard
 pkill -f uvicorn 2>/dev/null
 sleep 1
 nohup uvicorn main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
-EOF
 chmod +x ~/.termux/boot/start-aula.sh
 ```
 
@@ -327,59 +326,19 @@ Virker automatisk på **iPhone, iPad, Mac, Windows og Android** via mDNS — ing
 ### Opsætning i Termux (én gang)
 
 ```bash
-pkg update
-pkg install -y avahi
+pip install zeroconf
 ```
 
-Start Avahi mDNS daemon:
-```bash
-avahi-daemon --daemonize
-```
+Det er alt. mDNS annonceres automatisk når serveren starter — ingen separat daemon nødvendig.
 
-Verificer at det virker — fra en anden enhed på netværket:
-```bash
+Verificer fra en anden enhed:
+```
 ping familiekalender.local
 ```
 
-### Auto-start Avahi ved boot (via Termux:Boot)
+### Auto-start ved boot
 
-Opdater boot-scriptet til også at starte Avahi:
-```bash
-cat > ~/.termux/boot/start-aula.sh << 'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-# Start mDNS (familiekalender.local)
-avahi-daemon --daemonize 2>/dev/null || true
-
-# Start dashboard server
-cd ~/aula-dashboard
-pkill -f uvicorn 2>/dev/null
-sleep 1
-nohup uvicorn main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
-EOF
-chmod +x ~/.termux/boot/start-aula.sh
-```
-
-### Avahi konfiguration (hostname)
-
-Avahi bruger som standard enhedens Android-hostname. For at sætte det til `familiekalender`:
-
-```bash
-# Sæt hostname i Avahi config
-mkdir -p $PREFIX/etc/avahi
-cat > $PREFIX/etc/avahi/avahi-daemon.conf << 'EOF'
-[server]
-host-name=familiekalender
-domain-name=local
-use-ipv4=yes
-use-ipv6=no
-allow-interfaces=wlan0
-EOF
-```
-
-Genstart Avahi efter konfigurationsændring:
-```bash
-pkill avahi-daemon; avahi-daemon --daemonize
-```
+Boot-scriptet starter allerede uvicorn som annoncerer mDNS automatisk — ingen ekstra opsætning nødvendig.
 
 ### Tilmeld ICS-feed i kalender-app
 

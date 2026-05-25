@@ -7,3 +7,4 @@ playwright
 pydantic
 icalendar
 recurring-ical-events
+zeroconf

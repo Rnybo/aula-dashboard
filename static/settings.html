@@ -46,6 +46,50 @@
   </header>
 
   <div class="card">
+    <h2>📅 Kalenderabonnement (ICS)</h2>
+    <p class="section-note">Abonnér på lokale begivenheder fra Familieoverblik i din kalender-app. Kopiér URL'en og tilføj den som kalenderabonnement.</p>
+    <div class="field">
+      <label>ICS Feed URL</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="ics-url" readonly style="background:#f5f5f5;color:#555;cursor:text">
+        <button class="btn-gen" onclick="copyIcsUrl()" id="ics-copy-btn">📋 Kopiér</button>
+      </div>
+    </div>
+    <details style="margin-top:12px">
+      <summary style="font-size:0.78rem;font-weight:600;color:var(--blue);cursor:pointer;user-select:none">📖 Sådan tilføjer du abonnementet</summary>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:12px">
+        <div style="background:#f9f9f9;border-radius:8px;padding:12px;border:1px solid var(--border)">
+          <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px">🟦 Google Kalender</div>
+          <p style="font-size:0.75rem;color:#e53935;margin-bottom:6px">⚠️ Google Kalender kan ikke hente fra lokale netværksadresser. Brug kun Google Kalender hvis din server er tilgængelig fra internettet.</p>
+          <ol style="font-size:0.75rem;color:#555;line-height:1.8;padding-left:16px">
+            <li>Åbn <strong>calendar.google.com</strong></li>
+            <li>Indstillinger → Andre kalendere → <strong>Fra URL</strong></li>
+            <li>Indsæt URL og tryk <strong>Tilføj kalender</strong></li>
+          </ol>
+        </div>
+        <div style="background:#f9f9f9;border-radius:8px;padding:12px;border:1px solid var(--border)">
+          <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px">🍎 Apple Kalender (iPhone/iPad)</div>
+          <p style="font-size:0.75rem;color:#2e7d32;margin-bottom:6px">✅ Virker på lokalt netværk.</p>
+          <ol style="font-size:0.75rem;color:#555;line-height:1.8;padding-left:16px">
+            <li>Indstillinger → Kalender → Konti → Tilføj konto → <strong>Andet</strong></li>
+            <li>Vælg <strong>Tilføj abonnementskalender</strong></li>
+            <li>Indsæt URL og tryk <strong>Næste</strong></li>
+          </ol>
+        </div>
+        <div style="background:#f9f9f9;border-radius:8px;padding:12px;border:1px solid var(--border)">
+          <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px">🤖 Android Kalender</div>
+          <p style="font-size:0.75rem;color:#2e7d32;margin-bottom:6px">✅ Virker via apper som ICSx⁵ (gratis på F-Droid).</p>
+          <ol style="font-size:0.75rem;color:#555;line-height:1.8;padding-left:16px">
+            <li>Installér <strong>ICSx⁵</strong> fra F-Droid eller Play Store</li>
+            <li>Tilføj abonnement → indsæt URL</li>
+            <li>Vælg synkroniseringsinterval</li>
+          </ol>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
     <h2>🤖 Anthropic API</h2>
     <p class="section-note">Bruges til automatisk at parse datoer fra Aula-beskeder. Hent din nøgle på <strong>console.anthropic.com</strong>.</p>
     <div class="field">
@@ -126,6 +170,8 @@
 
   <script>
     async function load() {
+      // Set ICS URL based on current host
+      document.getElementById('ics-url').value = `http://${location.host}/api/custom-events.ics`;
       try {
         const s = await fetch('/api/settings').then(r => r.json());
         document.getElementById('api_key').value = s.api_key || '';
@@ -147,6 +193,15 @@
       } catch(e) {
         showToast('Kunne ikke hente indstillinger: ' + e.message, true);
       }
+    }
+
+    function copyIcsUrl() {
+      const url = document.getElementById('ics-url').value;
+      navigator.clipboard.writeText(url).then(() => {
+        const btn = document.getElementById('ics-copy-btn');
+        btn.textContent = '✅ Kopieret!';
+        setTimeout(() => btn.textContent = '📋 Kopiér', 2000);
+      });
     }
 
     function generateApiKey() {

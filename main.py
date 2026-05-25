@@ -20,6 +20,26 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
+def _start_mdns():
+    try:
+        import socket
+        from zeroconf import ServiceInfo, Zeroconf
+        ip = socket.gethostbyname(socket.gethostname())
+        info = ServiceInfo(
+            "_http._tcp.local.",
+            "familiekalender._http._tcp.local.",
+            addresses=[socket.inet_aton(ip)],
+            port=8000,
+            properties={"path": "/"},
+            server="familiekalender.local.",
+        )
+        Zeroconf().register_service(info)
+        logging.getLogger("mdns").info(f"mDNS: http://familiekalender.local:8000 → {ip}")
+    except Exception as e:
+        logging.getLogger("mdns").warning(f"mDNS unavailable: {e}")
+
+_start_mdns()
+
 app = FastAPI(docs_url=None, redoc_url=None)
 client = AulaClient()
 playwright_login = AulaPlaywright(on_success=client.update_credentials)
