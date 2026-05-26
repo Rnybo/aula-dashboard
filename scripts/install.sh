@@ -78,6 +78,19 @@ else
     skip "Node.js / Playwright"
 fi
 
+# Patch playwright til Android (kør altid — idempotent)
+python3 -c "
+import os
+f = '$INSTALL_DIR/node_modules/playwright-core/lib/server/registry/index.js'
+if not os.path.exists(f): exit()
+t = open(f).read()
+old = '    else\n      throw new Error(\"Unsupported platform: \" + process.platform);'
+new = '    else if (process.platform === \"android\" || process.platform === \"linux\")\n      cacheDirectory = require(\"path\").join(require(\"os\").homedir(), \".cache\");\n    else\n      throw new Error(\"Unsupported platform: \" + process.platform);'
+if old in t:
+    open(f,'w').write(t.replace(old, new))
+    print('playwright patched for android')
+" 2>/dev/null || true
+
 # ── Trin 5: .env setup ───────────────────────────────────────────────────────
 cd "$INSTALL_DIR"
 if [ ! -f ".env" ]; then
