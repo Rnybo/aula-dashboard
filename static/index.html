@@ -908,7 +908,7 @@
       days.forEach((day,i) => {
         const isToday = isSameDay(day,today), dateStr = day.toISOString().split('T')[0];
         const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-        html += `<div class="day-col ${isToday?'today':''} ${isWeekend?'weekend':''}" style="height:${totalH}px;grid-row:2">`;
+        html += `<div class="day-col ${isToday?'today':''} ${isWeekend?'weekend':''}" style="height:${totalH}px;grid-row:2" data-date="${dateStr}" onclick="onDayColClick(event, this)">`;
         for (let h=START_H; h<=END_H; h++) {
           html += `<div class="hour-line full" style="top:${(h-START_H)*hourH}px"></div>`;
           if (h<END_H) html += `<div class="hour-line" style="top:${(h-START_H)*hourH+hourH/2}px;border-top-style:dashed;opacity:.5"></div>`;
@@ -1475,6 +1475,55 @@
       closeBtn.onclick = () => document.getElementById('ev-info-overlay').classList.remove('open');
       btns.appendChild(closeBtn);
       document.getElementById('ev-info-overlay').classList.add('open');
+    }
+
+    function onDayColClick(evt, col) {
+      // Ignore if clicking on an existing event
+      if (evt.target.closest('.cal-event') || evt.target.closest('.presence-bar')) return;
+      const dateStr = col.dataset.date;
+      if (!dateStr) return;
+
+      // Calculate clicked time from Y position
+      const rect = col.getBoundingClientRect();
+      const y = evt.clientY - rect.top;
+      const totalH = col.offsetHeight;
+      const totalMins = (END_H - START_H) * 60;
+      const clickedMin = START_H * 60 + Math.round((y / totalH) * totalMins / 30) * 30;
+      const h = Math.floor(clickedMin / 60), m = clickedMin % 60;
+      const startStr = `${dateStr}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      const endH = Math.floor((clickedMin + 60) / 60), endM = (clickedMin + 60) % 60;
+      const endStr = `${dateStr}T${String(endH).padStart(2,'0')}:${String(endM).padStart(2,'0')}`;
+
+      // Open event modal pre-filled with time
+      _eventText = '';
+      document.getElementById('event-title').value = '';
+      document.getElementById('event-start').value = startStr;
+      document.getElementById('event-end').value = endStr;
+      document.getElementById('event-start-date').value = dateStr;
+      document.getElementById('event-end-date').value = dateStr;
+      document.getElementById('event-allday').checked = false;
+      toggleAllDay(false);
+
+      // Render calendar options
+      const calOpts = document.getElementById('event-cal-options');
+      const cals = [
+        { id: 'cal-faelles', label: 'Fælles', color: '#005fa8' },
+        ...CHILDREN.map(c => ({ id: 'cal-child-' + c.id, label: c.name, color: '#43a047' })),
+      ];
+      calOpts.innerHTML = cals.map(c =>
+        `<label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;cursor:pointer">
+          <input type="checkbox" class="cal-opt" id="${c.id}" style="accent-color:${c.color}">
+          <span style="background:${c.color};color:#fff;padding:2px 8px;border-radius:10px;font-size:0.72rem">${c.label}</span>
+        </label>`
+      ).join('');
+
+      const status = document.getElementById('event-parse-status');
+      status.style.cssText = 'font-size:0.8rem;color:#555;background:#f0f4ff;padding:8px;border-radius:6px;margin-bottom:12px';
+      status.textContent = `📅 Ny begivenhed ${new Date(startStr).toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long'})} kl. ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+
+      document.getElementById('event-modal-overlay').classList.add('open');
+      // Auto-focus titel felt
+      setTimeout(() => document.getElementById('event-title').focus(), 50);
     }
 
     function closeEvInfo(e) {
