@@ -116,6 +116,7 @@ touch "$MARKER"
 # ── Trin 9: (Gen)start server ─────────────────────────────────────────────────
 step "Starter server..."
 pkill -f uvicorn 2>/dev/null || true
+fuser -k 8000/tcp 2>/dev/null || true
 sleep 1
 nohup uvicorn backend.main:app --host 0.0.0.0 --port 8000 > "$INSTALL_DIR/server.log" 2>&1 &
 sleep 3
