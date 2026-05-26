@@ -13,10 +13,10 @@ INSTALL_DIR="$HOME/aula-dashboard"
 LOG="/sdcard/familieoverblik_install.log"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
-ok()   { echo -e "${GREEN}✓ $1${NC}"; }
-warn() { echo -e "${YELLOW}⚠ $1${NC}"; }
-err()  { echo -e "${RED}✗ $1${NC}"; exit 1; }
-step() { echo -e "\n${YELLOW}▶ $1${NC}"; }
+ok()   { printf "${GREEN}✓ %s${NC}\n" "$1"; }
+warn() { printf "${YELLOW}⚠ %s${NC}\n" "$1"; }
+err()  { printf "${RED}✗ %s${NC}\n" "$1"; exit 1; }
+step() { printf "\n${YELLOW}▶ %s${NC}\n" "$1"; }
 
 echo "=================================================="
 echo "  Familieoverblik — Installation"
