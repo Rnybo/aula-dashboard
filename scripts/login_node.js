@@ -7,7 +7,7 @@
 // Tell playwright-core we're running on ubuntu22.04-arm64 (Android arm64)
 process.env.PLAYWRIGHT_HOST_PLATFORM_OVERRIDE = 'ubuntu22.04-arm64';
 
-const { chromium } = require('./node_modules/playwright-core');
+const { chromium } = require(require('path').join(__dirname, '..', 'node_modules', 'playwright-core'));
 const fs = require('fs');
 const path = require('path');
 

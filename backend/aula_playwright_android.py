@@ -12,7 +12,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-NODE_SCRIPT = Path(__file__).parent / "login_node.js"
+NODE_SCRIPT = Path(__file__).parent.parent / "scripts" / "login_node.js"
 CHROMIUM_PATH = "/data/data/com.termux/files/usr/bin/chromium-browser"
 
 
