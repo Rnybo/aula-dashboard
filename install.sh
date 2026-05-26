@@ -21,8 +21,8 @@ echo "=================================================="
 
 # ── Trin 1: Grundpakker ───────────────────────────────────────────────────────
 step "Installerer Termux-pakker..."
-pkg update -y >> "$LOG" 2>&1
-pkg install -y python git openssh nodejs curl >> "$LOG" 2>&1 || warn "Nogle pakker fejlede — fortsætter"
+DEBIAN_FRONTEND=noninteractive pkg update -y >> "$LOG" 2>&1 || true
+DEBIAN_FRONTEND=noninteractive pkg install -y python git openssh nodejs curl >> "$LOG" 2>&1 || warn "Nogle pakker fejlede — fortsætter"
 ok "Termux-pakker installeret"
 
 # ── Trin 2: Python afhængigheder ──────────────────────────────────────────────
