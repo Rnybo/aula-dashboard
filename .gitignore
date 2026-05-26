@@ -1,10 +1,27 @@
+# Personlige oplysninger — må ALDRIG committes
 .env
 session.json
+spotify_tokens.json
+custom_events.json
+
+# Python
 __pycache__/
 *.pyc
-venv312/
+*.pyo
 venv/
+venv312/
+
+# Logs og debug
+*.log
 debug_*.png
 debug_screenshots/
+server.log
+install.log
+
+# SSH nøgler
 tablet_key
 tablet_key.pub
+
+# OS
+.DS_Store
+Thumbs.db
