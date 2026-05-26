@@ -45,71 +45,16 @@
     <a href="/">← Tilbage til Familieoverblik</a>
   </header>
 
+  <!-- 1. Dashboard titel -->
   <div class="card">
-    <h2>📅 Kalenderabonnement (ICS)</h2>
-    <p class="section-note">Abonnér på lokale begivenheder fra Familieoverblik i din kalender-app. Kopiér URL'en og tilføj den som kalenderabonnement.</p>
+    <h2>🏠 Dashboard</h2>
     <div class="field">
-      <label>ICS Feed URL</label>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" id="ics-url" readonly style="background:#f5f5f5;color:#555;cursor:text">
-        <button class="btn-gen" onclick="copyIcsUrl()" id="ics-copy-btn">📋 Kopiér</button>
-      </div>
-    </div>
-    <details style="margin-top:12px">
-      <summary style="font-size:0.78rem;font-weight:600;color:var(--blue);cursor:pointer;user-select:none">📖 Sådan tilføjer du abonnementet</summary>
-      <div style="margin-top:10px;display:flex;flex-direction:column;gap:12px">
-        <div style="background:#f9f9f9;border-radius:8px;padding:12px;border:1px solid var(--border)">
-          <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px">🟦 Google Kalender</div>
-          <p style="font-size:0.75rem;color:#e53935;margin-bottom:6px">⚠️ Google Kalender kan ikke hente fra lokale netværksadresser. Brug kun Google Kalender hvis din server er tilgængelig fra internettet.</p>
-          <ol style="font-size:0.75rem;color:#555;line-height:1.8;padding-left:16px">
-            <li>Åbn <strong>calendar.google.com</strong></li>
-            <li>Indstillinger → Andre kalendere → <strong>Fra URL</strong></li>
-            <li>Indsæt URL og tryk <strong>Tilføj kalender</strong></li>
-          </ol>
-        </div>
-        <div style="background:#f9f9f9;border-radius:8px;padding:12px;border:1px solid var(--border)">
-          <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px">🍎 Apple Kalender (iPhone/iPad)</div>
-          <p style="font-size:0.75rem;color:#2e7d32;margin-bottom:6px">✅ Virker på lokalt netværk.</p>
-          <ol style="font-size:0.75rem;color:#555;line-height:1.8;padding-left:16px">
-            <li>Indstillinger → Kalender → Konti → Tilføj konto → <strong>Andet</strong></li>
-            <li>Vælg <strong>Tilføj abonnementskalender</strong></li>
-            <li>Indsæt URL og tryk <strong>Næste</strong></li>
-          </ol>
-        </div>
-        <div style="background:#f9f9f9;border-radius:8px;padding:12px;border:1px solid var(--border)">
-          <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px">🤖 Android Kalender</div>
-          <p style="font-size:0.75rem;color:#2e7d32;margin-bottom:6px">✅ Virker via apper som ICSx⁵ (gratis på F-Droid).</p>
-          <ol style="font-size:0.75rem;color:#555;line-height:1.8;padding-left:16px">
-            <li>Installér <strong>ICSx⁵</strong> fra F-Droid eller Play Store</li>
-            <li>Tilføj abonnement → indsæt URL</li>
-            <li>Vælg synkroniseringsinterval</li>
-          </ol>
-        </div>
-      </div>
-    </details>
-  </div>
-
-  <div class="card">
-    <h2>🤖 Anthropic API <span style="font-size:0.7rem;font-weight:400;color:#aaa">(valgfri)</span></h2>
-    <p class="section-note">Bruges til automatisk at parse datoer fra Aula-beskeder. Uden nøgle bruges en simpel dansk dato-parser i stedet. Hent din nøgle på <strong>console.anthropic.com</strong>.</p>
-    <div class="field">
-      <label>Anthropic API Nøgle</label>
-      <input type="password" id="anthropic_key" placeholder="sk-ant-...">
+      <label>Titel (vises i header)</label>
+      <input type="text" id="dashboard_title" placeholder="Hjem">
     </div>
   </div>
 
-  <div class="card">
-    <h2>🔑 API Nøgle</h2>
-    <p class="section-note">Beskytter dashboardet mod uautoriseret adgang på dit netværk. Klik "Generer" for at lave en ny sikker nøgle.</p>
-    <div class="api-key-row">
-      <div class="field">
-        <label>API Nøgle</label>
-        <input type="text" id="api_key" placeholder="Generer eller indtast en nøgle">
-      </div>
-      <button class="btn-gen" onclick="generateApiKey()">🔄 Generer</button>
-    </div>
-  </div>
-
+  <!-- 2. MitID / Aula konti -->
   <div class="card">
     <h2>👤 MitID / Aula Konti</h2>
     <p class="section-note">Tilføj de konti der skal bruges til Aula-login. Brugernavn er dit telefonnummer eller CPR som du logger ind med.</p>
@@ -117,6 +62,7 @@
     <button class="add-btn" onclick="addAccount()">+ Tilføj konto</button>
   </div>
 
+  <!-- 3. Google / Apple Kalendere -->
   <div class="card">
     <h2>📅 Google Kalendere</h2>
     <p class="section-note">Tilføj ICS-links fra Google Kalender eller Apple Kalender (iCloud).</p>
@@ -129,8 +75,7 @@
           <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px">🟦 Google Kalender</div>
           <ol style="font-size:0.75rem;color:#555;line-height:1.8;padding-left:16px">
             <li>Åbn <strong>calendar.google.com</strong></li>
-            <li>Klik på de tre prikker ud for den kalender du vil tilføje</li>
-            <li>Vælg <strong>Indstillinger og deling</strong></li>
+            <li>Klik på de tre prikker ud for din kalender → <strong>Indstillinger og deling</strong></li>
             <li>Scroll ned til <strong>Integrer kalender</strong></li>
             <li>Kopiér <strong>Offentlig adresse i iCal-format</strong></li>
           </ol>
@@ -138,21 +83,19 @@
         <div style="background:#f9f9f9;border-radius:8px;padding:12px;border:1px solid var(--border)">
           <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px">🍎 Apple Kalender (iCloud)</div>
           <ol style="font-size:0.75rem;color:#555;line-height:1.8;padding-left:16px">
-            <li>Åbn <strong>Kalender</strong>-appen på din iPhone eller iPad</li>
-            <li>Tryk på det blå <strong>ℹ️</strong> ikon ud for den kalender du vil dele</li>
-            <li>Slå <strong>Offentlig kalender</strong> til</li>
-            <li>Tryk <strong>Del link</strong> og kopiér URL'en</li>
-            <li>Erstat <strong>webcal://</strong> med <strong>https://</strong> i URL'en</li>
+            <li>Kalender-appen → tryk ℹ️ ud for din kalender</li>
+            <li>Slå <strong>Offentlig kalender</strong> til → kopiér URL</li>
+            <li>Erstat <strong>webcal://</strong> med <strong>https://</strong></li>
           </ol>
-          <div style="font-size:0.72rem;color:#aaa;margin-top:6px">Eksempel: <code style="background:#eee;padding:1px 4px;border-radius:3px">https://p123-caldav.icloud.com/published/2/...</code></div>
         </div>
       </div>
     </details>
   </div>
 
+  <!-- 4. Vejrplacering -->
   <div class="card">
     <h2>🌤️ Vejrplacering</h2>
-    <p class="section-note">Koordinater for din placering. Find dem på <strong>maps.google.com</strong> — søg din adresse, højreklik på huset og klik på koordinaterne øverst i menuen for at kopiere dem.<br>Eksempel: <code style="background:#eee;padding:1px 4px;border-radius:3px">56.1136, 10.1968</code> → Breddegrad: 56.1136, Længdegrad: 10.1968</p>
+    <p class="section-note">Find koordinater på <strong>maps.google.com</strong> — søg din adresse og højreklik på huset.<br>Eksempel: <code style="background:#eee;padding:1px 4px;border-radius:3px">56.1136, 10.1968</code></p>
     <div class="row">
       <div class="field">
         <label>Breddegrad (Latitude)</label>
@@ -163,6 +106,65 @@
         <input type="text" id="weather_lon" placeholder="f.eks. 10.178">
       </div>
     </div>
+  </div>
+
+  <!-- 5. API Nøgle -->
+  <div class="card">
+    <h2>🔑 API Nøgle</h2>
+    <p class="section-note">Beskytter dashboardet mod uautoriseret adgang på dit netværk.</p>
+    <div class="api-key-row">
+      <div class="field">
+        <label>API Nøgle</label>
+        <input type="text" id="api_key" placeholder="Generer eller indtast en nøgle">
+      </div>
+      <button class="btn-gen" onclick="generateApiKey()">🔄 Generer</button>
+    </div>
+  </div>
+
+  <!-- 6. Anthropic API (valgfri) -->
+  <div class="card">
+    <h2>🤖 Anthropic API <span style="font-size:0.7rem;font-weight:400;color:#aaa">(valgfri)</span></h2>
+    <p class="section-note">Forbedrer dato-parsing fra Aula-beskeder. Uden nøgle bruges en simpel dansk parser. Hent nøgle på <strong>console.anthropic.com</strong>.</p>
+    <div class="field">
+      <label>Anthropic API Nøgle</label>
+      <input type="password" id="anthropic_key" placeholder="sk-ant-...">
+    </div>
+  </div>
+
+  <!-- 7. ICS abonnement -->
+  <div class="card">
+    <h2>📅 Kalenderabonnement (ICS)</h2>
+    <p class="section-note">Abonnér på lokale begivenheder i din kalender-app.</p>
+    <div class="field">
+      <label>ICS Feed URL</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="ics-url" readonly style="background:#f5f5f5;color:#555">
+        <button class="btn-gen" onclick="copyIcsUrl()" id="ics-copy-btn">📋 Kopiér</button>
+      </div>
+    </div>
+    <details style="margin-top:12px">
+      <summary style="font-size:0.78rem;font-weight:600;color:var(--blue);cursor:pointer;user-select:none">📖 Sådan tilføjer du abonnementet</summary>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:12px">
+        <div style="background:#f9f9f9;border-radius:8px;padding:12px;border:1px solid var(--border)">
+          <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px">🍎 Apple Kalender</div>
+          <ol style="font-size:0.75rem;color:#555;line-height:1.8;padding-left:16px">
+            <li>Indstillinger → Kalender → Konti → Tilføj konto → <strong>Andet</strong></li>
+            <li>Vælg <strong>Tilføj abonnementskalender</strong> → indsæt URL</li>
+          </ol>
+        </div>
+        <div style="background:#f9f9f9;border-radius:8px;padding:12px;border:1px solid var(--border)">
+          <div style="font-size:0.78rem;font-weight:700;margin-bottom:6px">🤖 Android (ICSx⁵)</div>
+          <ol style="font-size:0.75rem;color:#555;line-height:1.8;padding-left:16px">
+            <li>Installér <strong>ICSx⁵</strong> fra F-Droid eller Play Store</li>
+            <li>Tilføj abonnement → indsæt URL → vælg synkroniseringsinterval</li>
+          </ol>
+        </div>
+        <div style="background:#fff8e1;border-radius:8px;padding:12px;border:1px solid #f59e0b">
+          <div style="font-size:0.78rem;font-weight:700;margin-bottom:4px">🟦 Google Kalender</div>
+          <p style="font-size:0.75rem;color:#7c5800">⚠️ Kræver at din server er tilgængelig fra internettet — virker ikke på lokalt netværk.</p>
+        </div>
+      </div>
+    </details>
   </div>
 
   <button class="save-btn" id="save-btn" onclick="saveSettings()">💾 Gem indstillinger</button>
@@ -280,6 +282,8 @@
         if (data.ok) {
           showToast('✅ Indstillinger gemt!');
           if (data.api_key) document.getElementById('api_key').value = data.api_key;
+          localStorage.setItem('config_updated', Date.now());
+          setTimeout(() => { window.location.href = '/'; }, 1000);
         } else {
           showToast('Fejl: ' + JSON.stringify(data), true);
         }

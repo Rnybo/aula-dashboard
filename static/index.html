@@ -1669,6 +1669,10 @@
 
     function schedulePoll(ms) { clearTimeout(pollTimer); pollTimer=setTimeout(loadAll,ms); }
     setInterval(()=>{ if(document.querySelector('.now-line')) renderWeek(); },60000);
+    // Reload config if settings were changed in another tab
+    window.addEventListener('storage', e => {
+      if (e.key === 'config_updated') initConfig();
+    });
     loadAll();
   </script>
 </body>

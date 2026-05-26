@@ -40,6 +40,23 @@ def _start_mdns():
 
 _start_mdns()
 
+# Ensure required keys exist in .env
+def _ensure_env_key(key: str, default: str):
+    env_path = Path(__file__).parent / ".env"
+    try:
+        content = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+        if not any(l.startswith(f"{key}=") for l in content.splitlines()):
+            with open(env_path, "a", encoding="utf-8") as f:
+                f.write(f"{key}={default}\n")
+            os.environ[key] = default
+    except Exception: pass
+
+_ensure_env_key("DASHBOARD_TITLE", "Hjem")
+_ensure_env_key("GOOGLE_CALENDAR_ICS", "")
+_ensure_env_key("GOOGLE_CALENDAR_NAME", "")
+_ensure_env_key("WEATHER_LAT", "")
+_ensure_env_key("WEATHER_LON", "")
+
 app = FastAPI(docs_url=None, redoc_url=None)
 client = AulaClient()
 playwright_login = AulaPlaywright(on_success=client.update_credentials)
@@ -113,7 +130,7 @@ def status():
 @app.get("/api/login/accounts", dependencies=[Depends(check_api_key)])
 def login_accounts():
     accounts = []
-    for suffix in ["", "_2", "_3", "_4", "_5"]:
+    for suffix in [""] + [f"_{i}" for i in range(2, 11)]:
         identity = os.getenv(f"MITID_IDENTITY{suffix}", "")
         username = os.getenv(f"MITID_USERNAME{suffix}", "")
         if username:
@@ -212,21 +229,12 @@ def google_calendar(from_date: str = "", to_date: str = ""):
 
     colors = ["#e53935","#8e24aa","#1e88e5","#43a047","#fb8c00"]
     seen, calendars = set(), []
-    # New-style keys: GOOGLE_CALENDAR_ICS, GOOGLE_CALENDAR_ICS_2, ...
-    for idx in range(1, 6):
+    for idx in range(1, 11):
         suffix = "" if idx == 1 else f"_{idx}"
         url  = os.getenv(f"GOOGLE_CALENDAR_ICS{suffix}", "")
         name = os.getenv(f"GOOGLE_CALENDAR_NAME{suffix}", f"Kalender {idx}")
         if url and url not in seen:
-            seen.add(url); calendars.append({"url": url, "name": name, "color": colors[idx-1]})
-    # Old-style keys: GOOGLE_CALENDAR_ICS_RASMUS, GOOGLE_CALENDAR_ICS_MAJA
-    for i, (old_key, old_name, color) in enumerate([
-        ("GOOGLE_CALENDAR_ICS_RASMUS", "Rasmus", "#e53935"),
-        ("GOOGLE_CALENDAR_ICS_MAJA",   "Maja",   "#8e24aa"),
-    ]):
-        url = os.getenv(old_key, "")
-        if url and url not in seen:
-            seen.add(url); calendars.append({"url": url, "name": old_name, "color": color})
+            seen.add(url); calendars.append({"url": url, "name": name, "color": colors[min(idx-1, len(colors)-1)]})
     calendars.append({"url": "https://calendar.google.com/calendar/ical/da.danish%23holiday%40group.v.calendar.google.com/public/basic.ics", "name": "Helligdag", "color": "#f59e0b"})
     today = datetime.date.today()
     date_from = datetime.date.fromisoformat(from_date) if from_date else today
@@ -593,29 +601,19 @@ def get_settings():
         "weather_lat": os.getenv("WEATHER_LAT", "56.127"),
         "weather_lon": os.getenv("WEATHER_LON", "10.178"),
     }
-    for suffix in ["", "_2", "_3", "_4", "_5"]:
+    for suffix in [""] + [f"_{i}" for i in range(2, 11)]:
         u = os.getenv(f"MITID_USERNAME{suffix}", "")
         i = os.getenv(f"MITID_IDENTITY{suffix}", "")
         if u or i:
             result["accounts"].append({"username": u, "identity": i})
-    # Support both old (ICS_RASMUS/MAJA) and new (ICS, ICS_2) format
     seen = set()
-    for idx in range(1, 6):
+    for idx in range(1, 11):
         suffix = "" if idx == 1 else f"_{idx}"
         url  = os.getenv(f"GOOGLE_CALENDAR_ICS{suffix}", "")
         name = os.getenv(f"GOOGLE_CALENDAR_NAME{suffix}", "")
         if url and url not in seen:
             seen.add(url)
             result["google_calendars"].append({"url": url, "name": name})
-    # Also check old-style keys
-    for old_key, old_name in [
-        ("GOOGLE_CALENDAR_ICS_RASMUS", "Rasmus"),
-        ("GOOGLE_CALENDAR_ICS_MAJA",   "Maja"),
-    ]:
-        url = os.getenv(old_key, "")
-        if url and url not in seen:
-            seen.add(url)
-            result["google_calendars"].append({"url": url, "name": old_name})
     return result
 
 
@@ -630,10 +628,14 @@ async def save_settings(request: Request):
     def set_env(key: str, value: str):
         nonlocal lines
         for i, line in enumerate(lines):
-            if line.startswith(f"{key}=") or line.startswith(f"# {key}="):
-                lines[i] = f"{key}={value}" if value else f"# {key}="
+            if line.startswith(f"{key}="):
+                lines[i] = f"{key}={value}" if value else ""
                 return
-        lines.append(f"{key}={value}" if value else f"# {key}=")
+        if value:
+            lines.append(f"{key}={value}")
+
+    # Remove blank/comment lines before rewriting
+    lines = [l for l in lines if l.strip() and not l.strip().startswith("#")]
 
     # API key — generate if empty
     api_key = data.get("api_key", "").strip()
@@ -641,29 +643,31 @@ async def save_settings(request: Request):
         api_key = sec.token_hex(32)
     set_env("API_KEY", api_key)
 
-    # Accounts
-    for suffix in ["", "_2", "_3", "_4", "_5"]:
-        set_env(f"MITID_USERNAME{suffix}", "")
-        set_env(f"MITID_IDENTITY{suffix}", "")
-    for idx, acc in enumerate(data.get("accounts", [])[:5]):
-        suffix = "" if idx == 0 else f"_{idx+1}"
-        set_env(f"MITID_USERNAME{suffix}", acc.get("username", ""))
-        set_env(f"MITID_IDENTITY{suffix}", acc.get("identity", ""))
+    # Accounts — skriv kun dem der er udfyldt, ryd resten dynamisk
+    # Fjern alle eksisterende MITID_USERNAME/IDENTITY nøgler
+    lines = [l for l in lines if not (l.startswith("MITID_USERNAME") or l.startswith("MITID_IDENTITY") or l.startswith("# MITID_"))]
+    for idx, acc in enumerate(data.get("accounts", [])[:20]):
+        u, i = acc.get("username", "").strip(), acc.get("identity", "").strip()
+        if u or i:
+            suffix = "" if idx == 0 else f"_{idx+1}"
+            lines.append(f"MITID_USERNAME{suffix}={u}")
+            lines.append(f"MITID_IDENTITY{suffix}={i}")
 
-    # Google Calendars
-    for i in range(1, 6):
-        suffix = "" if i == 1 else f"_{i}"
-        set_env(f"GOOGLE_CALENDAR_ICS{suffix}", "")
-        set_env(f"GOOGLE_CALENDAR_NAME{suffix}", "")
-    for idx, cal in enumerate(data.get("google_calendars", [])[:5]):
-        suffix = "" if idx == 0 else f"_{idx+1}"
-        set_env(f"GOOGLE_CALENDAR_ICS{suffix}", cal.get("url", ""))
-        set_env(f"GOOGLE_CALENDAR_NAME{suffix}", cal.get("name", ""))
+    # Google Kalendere — skriv kun dem der er udfyldt
+    lines = [l for l in lines if not (l.startswith("GOOGLE_CALENDAR_ICS") or l.startswith("GOOGLE_CALENDAR_NAME") or l.startswith("# GOOGLE_CALENDAR_"))]
+    for idx, cal in enumerate(data.get("google_calendars", [])[:20]):
+        url, name = cal.get("url", "").strip(), cal.get("name", "").strip()
+        if url:
+            suffix = "" if idx == 0 else f"_{idx+1}"
+            lines.append(f"GOOGLE_CALENDAR_ICS{suffix}={url}")
+            lines.append(f"GOOGLE_CALENDAR_NAME{suffix}={name}")
 
     # Weather
     if data.get("weather_lat"): set_env("WEATHER_LAT", data["weather_lat"])
     if data.get("weather_lon"): set_env("WEATHER_LON", data["weather_lon"])
-    if data.get("dashboard_title") is not None: set_env("DASHBOARD_TITLE", data.get("dashboard_title", "Hjem"))
+    title = data.get("dashboard_title", "Hjem").strip() or "Hjem"
+    set_env("DASHBOARD_TITLE", title)
+    os.environ["DASHBOARD_TITLE"] = title
     ak = data.get("anthropic_key", "").strip()
     if ak and ak != "***": set_env("ANTHROPIC_API_KEY", ak)
 
