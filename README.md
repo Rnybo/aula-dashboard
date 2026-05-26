@@ -19,7 +19,7 @@ A family dashboard for the Danish school platform Aula, designed for a wall-moun
 ## Quick Install (Android/Termux)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Rnybo/aula-dashboard/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/Rnybo/home-dashboard/main/scripts/install.sh | sh
 ```
 
 Then open: **http://familiekalender.local:8000/settings.html**
@@ -28,8 +28,8 @@ Then open: **http://familiekalender.local:8000/settings.html**
 
 ### 1. Clone
 ```bash
-git clone https://github.com/Rnybo/aula-dashboard.git
-cd aula-dashboard
+git clone https://github.com/Rnybo/home-dashboard.git
+cd home-dashboard
 ```
 
 ### 2. Virtual environment
@@ -100,17 +100,22 @@ Fetched from [met.no](https://api.met.no) — no API key needed. Set `WEATHER_LA
 ## Project Structure
 
 ```
-aula-dashboard/
-├── main.py                    # FastAPI — all API endpoints
-├── aula_client.py             # Aula API client
-├── aula_playwright.py         # MitID login via Playwright
-├── install.sh                 # One-click Android/Termux installer
-├── start.bat                  # Windows start script
+home-dashboard/
+├── backend/
+│   ├── main.py                # FastAPI — all API endpoints
+│   ├── aula_client.py         # Aula API client
+│   ├── aula_playwright.py     # MitID login via Playwright (PC)
+│   └── aula_playwright_android.py  # MitID login via Node.js (Android)
+├── frontend/
+│   ├── index.html             # Single-page dashboard UI
+│   └── settings.html          # Browser-based configuration
+├── scripts/
+│   ├── install.sh             # One-click Android/Termux installer
+│   ├── start.bat              # Windows start script
+│   ├── full_sync.py           # Deploy to tablet via SSH
+│   └── login_node.js          # Node.js MitID login for Android
 ├── requirements.txt
-├── .env.example
-└── static/
-    ├── index.html             # Single-page dashboard UI
-    └── settings.html          # Browser-based configuration
+└── .env.example
 ```
 
 ## API Endpoints

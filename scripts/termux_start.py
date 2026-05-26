@@ -29,7 +29,7 @@ def start_server():
 
     # Start new server — nohup keeps it alive after SSH closes
     c.exec_command(
-        'cd ~/aula-dashboard && find . -name "__pycache__" -exec rm -rf {} + 2>/dev/null; '
+        'cd ~/home-dashboard && find . -name "__pycache__" -exec rm -rf {} + 2>/dev/null; '
         'nohup uvicorn backend.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &',
         timeout=5
     )

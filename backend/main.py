@@ -21,7 +21,7 @@ from pathlib import Path
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
-ROOT = Path(__file__).parent.parent  # project root (aula-dashboard/)
+ROOT = Path(__file__).parent.parent  # project root (home-dashboard/)
 load_dotenv(ROOT / ".env")
 
 def _start_mdns():
@@ -333,7 +333,7 @@ def weather():
     try:
         r = req.get(
             f"https://api.met.no/weatherapi/locationforecast/2.0/compact?lat={lat}&lon={lon}",
-            headers={"User-Agent": "aula-dashboard/1.0 github.com/Rnybo/aula-dashboard"},
+            headers={"User-Agent": "home-dashboard/1.0 github.com/Rnybo/home-dashboard"},
             timeout=8
         )
         r.raise_for_status()

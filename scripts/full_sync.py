@@ -34,15 +34,15 @@ if __name__ == "__main__":
 
     # Pull latest code
     print("Pulling latest code...")
-    ssh(c, "cd ~/aula-dashboard && git pull origin main")
+    ssh(c, "cd ~/home-dashboard && git pull origin main")
 
     # Push .env (never in git)
-    push_file(c, ".env", "/data/data/com.termux/files/home/aula-dashboard/.env")
+    push_file(c, ".env", "/data/data/com.termux/files/home/home-dashboard/.env")
 
     # Restart server
     print("Restarting server...")
     ssh(c, "pkill -f uvicorn 2>/dev/null; sleep 1")
-    ssh(c, "cd ~/aula-dashboard && rm -rf backend/__pycache__ && "
+    ssh(c, "cd ~/home-dashboard && rm -rf backend/__pycache__ && "
            "nohup uvicorn backend.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &")
     time.sleep(4)
 
