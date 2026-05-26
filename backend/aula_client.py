@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 API_BASE = "https://www.aula.dk/api/v"
 API_VERSION = "23"
-SESSION_FILE = Path("session.json")
+SESSION_FILE = Path(__file__).parent.parent / "session.json"
 
 
 class AulaClient:
