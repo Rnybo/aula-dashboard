@@ -79,15 +79,6 @@ else
     else warn "Git clone fejlede — kopiér koden manuelt fra PC"; fi
 fi
 
-# Repoet bruger backend/ og frontend/ mapper — flad dem ud til tablet-struktur
-if [ -d "$INSTALL_DIR/backend" ]; then
-    cp "$INSTALL_DIR/backend/"*.py "$INSTALL_DIR/"
-    mkdir -p "$INSTALL_DIR/static"
-    cp "$INSTALL_DIR/frontend/"*.html "$INSTALL_DIR/static/"
-    cp "$INSTALL_DIR/scripts/login_node.js" "$INSTALL_DIR/"
-    ok "Filer fladt ud fra backend/, frontend/ og scripts/"
-fi
-
 # Patch playwright stub efter kode er hentet
 if [ -f "$INSTALL_DIR/aula_playwright_android.py" ]; then
     cp "$INSTALL_DIR/aula_playwright_android.py" "$INSTALL_DIR/aula_playwright.py"
@@ -114,7 +105,7 @@ export HOME="/data/data/com.termux/files/home"
 cd ~/aula-dashboard
 pkill -f uvicorn 2>/dev/null
 sleep 2
-nohup uvicorn main:app --host 0.0.0.0 --port 8000 > ~/aula-dashboard/server.log 2>&1 &
+nohup uvicorn backend.main:app --host 0.0.0.0 --port 8000 > ~/aula-dashboard/server.log 2>&1 &
 BOOT
 chmod +x "$HOME/.termux/boot/start-familieoverblik.sh"
 ok "Auto-start konfigureret"
@@ -126,7 +117,7 @@ touch "$MARKER"
 step "Starter server..."
 pkill -f uvicorn 2>/dev/null || true
 sleep 1
-nohup uvicorn main:app --host 0.0.0.0 --port 8000 > "$INSTALL_DIR/server.log" 2>&1 &
+nohup uvicorn backend.main:app --host 0.0.0.0 --port 8000 > "$INSTALL_DIR/server.log" 2>&1 &
 sleep 3
 
 if pgrep -f uvicorn > /dev/null; then

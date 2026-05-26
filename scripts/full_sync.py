@@ -1,64 +1,55 @@
-"""Full sync of all relevant project files to Android tablet"""
-import paramiko
-import os
+"""Sync latest code to Android tablet via git pull + restart"""
+import subprocess, time, paramiko, sys
 
 TABLET_IP = "127.0.0.1"
 TABLET_PORT = 8022
 TABLET_USER = "u0_a225"
 KEY_FILE = r"C:\Users\rnf\Projects\aula-dashboard\tablet_key"
-LOCAL_ROOT = r"C:\Users\rnf\Projects\aula-dashboard"
-REMOTE_ROOT = "/data/data/com.termux/files/home/aula-dashboard"
-
-# All files to deploy: (local, remote)
-FILES = [
-    ("backend/main.py",                    "main.py"),
-    ("backend/aula_client.py",             "aula_client.py"),
-    ("backend/aula_playwright_android.py", "aula_playwright.py"),  # stub for Android
-    ("scripts/login_node.js",              "login_node.js"),
-    ("requirements.txt",                   "requirements.txt"),
-    (".env",                               ".env"),
-    ("frontend/index.html",                "static/index.html"),
-    ("frontend/settings.html",             "static/settings.html"),
-]
 
 def connect():
+    subprocess.run(['adb', 'forward', 'tcp:8022', 'tcp:8022'], capture_output=True)
     key = paramiko.RSAKey.from_private_key_file(KEY_FILE)
     c = paramiko.SSHClient()
     c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     c.connect(TABLET_IP, port=TABLET_PORT, username=TABLET_USER, pkey=key, timeout=10)
     return c
 
-def ssh_run(c, cmd, timeout=15):
+def ssh(c, cmd, timeout=60):
     _, out, err = c.exec_command(cmd, timeout=timeout)
-    return out.read().decode() + err.read().decode()
+    o = out.read().decode('utf-8', errors='replace').strip()
+    e = err.read().decode('utf-8', errors='replace').strip()
+    if o: print(o)
+    if e: print("ERR:", e)
+    return o
 
-c = connect()
-sftp = c.open_sftp()
+def push_file(c, local, remote):
+    sftp = c.open_sftp()
+    sftp.put(local, remote)
+    sftp.close()
+    print(f"  pushed {local}")
 
-# Ensure dirs exist
-ssh_run(c, f"mkdir -p {REMOTE_ROOT}/static {REMOTE_ROOT}/debug_screenshots")
+if __name__ == "__main__":
+    c = connect()
 
-# Remove stale nested aula-dashboard folder
-ssh_run(c, f"rm -rf {REMOTE_ROOT}/aula-dashboard")
+    # Pull latest code
+    print("Pulling latest code...")
+    ssh(c, "cd ~/aula-dashboard && git pull origin main")
 
-# Remove old renew.html
-ssh_run(c, f"rm -f {REMOTE_ROOT}/static/renew.html")
+    # Push .env (never in git)
+    push_file(c, ".env", "/data/data/com.termux/files/home/aula-dashboard/.env")
 
-# Push all files
-for local_file, remote_file in FILES:
-    local_path = os.path.join(LOCAL_ROOT, local_file)
-    remote_path = f"{REMOTE_ROOT}/{remote_file}"
-    sftp.put(local_path, remote_path)
-    print(f"  pushed {local_file}")
+    # Restart server
+    print("Restarting server...")
+    ssh(c, "pkill -f uvicorn 2>/dev/null; sleep 1")
+    ssh(c, "cd ~/aula-dashboard && rm -rf backend/__pycache__ && "
+           "nohup uvicorn backend.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &")
+    time.sleep(4)
 
-sftp.close()
+    # Verify
+    result = ssh(c, "curl -s http://127.0.0.1:8000/api/config", timeout=10)
+    if "api_key" in result:
+        print("Server running OK")
+    else:
+        print("WARNING: server may not be running — check server.log")
 
-# Clear pycache
-ssh_run(c, f"rm -rf {REMOTE_ROOT}/__pycache__")
-
-# Verify key files
-result = ssh_run(c, f"md5sum {REMOTE_ROOT}/main.py {REMOTE_ROOT}/aula_playwright.py {REMOTE_ROOT}/login_node.js {REMOTE_ROOT}/static/index.html")
-print(result)
-
-c.close()
-print("Full sync complete.")
+    c.close()
