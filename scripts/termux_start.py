@@ -8,7 +8,7 @@ import subprocess, time, paramiko
 TABLET_IP = "127.0.0.1"
 TABLET_PORT = 8022
 TABLET_USER = "u0_a225"
-KEY_FILE = r"C:\Users\rnf\Projects\aula-dashboard\tablet_key"
+KEY_FILE = r"C:\Users\rnf\Projects\home-dashboard\tablet_key"
 
 def adb(args):
     subprocess.run(['adb'] + args, capture_output=True)

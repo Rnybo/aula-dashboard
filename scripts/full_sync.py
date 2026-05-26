@@ -4,7 +4,7 @@ import subprocess, time, paramiko, sys
 TABLET_IP = "127.0.0.1"
 TABLET_PORT = 8022
 TABLET_USER = "u0_a225"
-KEY_FILE = r"C:\Users\rnf\Projects\aula-dashboard\tablet_key"
+KEY_FILE = r"C:\Users\rnf\Projects\home-dashboard\tablet_key"
 
 def connect():
     subprocess.run(['adb', 'forward', 'tcp:8022', 'tcp:8022'], capture_output=True)
