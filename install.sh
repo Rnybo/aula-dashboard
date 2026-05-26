@@ -5,6 +5,9 @@
 # =============================================================================
 
 set +e
+export PATH="/data/data/com.termux/files/usr/bin:/data/data/com.termux/files/usr/bin/applets:$PATH"
+export HOME="/data/data/com.termux/files/home"
+export PREFIX="/data/data/com.termux/files/usr"
 REPO="https://github.com/Rnybo/aula-dashboard.git"
 INSTALL_DIR="$HOME/aula-dashboard"
 LOG="/sdcard/familieoverblik_install.log"
@@ -64,10 +67,17 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     cd "$INSTALL_DIR"
     git pull origin main >> "$LOG" 2>&1
     ok "Kode opdateret"
+elif [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/main.py" ]; then
+    ok "Kode allerede til stede"
 else
-    git clone "$REPO" "$INSTALL_DIR" >> "$LOG" 2>&1 \
-        || err "Kunne ikke hente kode — er Git konfigureret med token?"
-    ok "Kode hentet"
+    # Prøv clone — kræver at token er konfigureret eller repo er public
+    git clone "$REPO" "$INSTALL_DIR" >> "$LOG" 2>&1
+    if [ $? -eq 0 ]; then
+        ok "Kode hentet"
+    else
+        warn "Git clone fejlede — brug ADB til at kopiere koden manuelt"
+        warn "Kør fra PC: adb push . /sdcard/aula-dashboard && cp -r /sdcard/aula-dashboard ~/aula-dashboard"
+    fi
 fi
 
 # ── Trin 6: .env setup ────────────────────────────────────────────────────────
