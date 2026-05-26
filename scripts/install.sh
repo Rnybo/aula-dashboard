@@ -39,7 +39,20 @@ else
     skip "Termux-pakker"
 fi
 
-# ── Trin 2: Python afhængigheder ──────────────────────────────────────────────
+# ── Trin 2: Hent/opdater kode ────────────────────────────────────────────────
+step "Henter seneste kode..."
+if [ -d "$INSTALL_DIR/.git" ]; then
+    cd "$INSTALL_DIR"
+    git pull origin main >> "$LOG" 2>&1
+    ok "Kode opdateret"
+else
+    rm -rf "$INSTALL_DIR"
+    git clone "$REPO" "$INSTALL_DIR" >> "$LOG" 2>&1
+    if [ $? -eq 0 ]; then ok "Kode hentet"
+    else err "Git clone fejlede — tjek netværk og at $REPO er tilgængeligt"; fi
+fi
+
+# ── Trin 3: Python afhængigheder ─────────────────────────────────────────────
 if is_first_install || ! python -c "import fastapi" > /dev/null 2>&1; then
     step "Installerer Python pakker..."
     pip install --quiet --break-system-packages \
@@ -51,7 +64,7 @@ else
     skip "Python pakker"
 fi
 
-# ── Trin 3: Node.js / Playwright ─────────────────────────────────────────────
+# ── Trin 4: Node.js / Playwright ─────────────────────────────────────────────
 if is_first_install || [ ! -d "$INSTALL_DIR/node_modules/playwright-core" ]; then
     step "Installerer Node.js pakker..."
     npm install playwright-core@1.52.0 --prefix "$INSTALL_DIR" --silent >> "$LOG" 2>&1 \
@@ -61,30 +74,7 @@ else
     skip "Node.js / Playwright"
 fi
 
-# ── Trin 4: Patch playwright til Android ─────────────────────────────────────
-# (køres efter git pull i trin 5)
-
-# ── Trin 5: Hent/opdater kode ─────────────────────────────────────────────────
-step "Henter seneste kode..."
-if [ -d "$INSTALL_DIR/.git" ]; then
-    cd "$INSTALL_DIR"
-    git pull origin main >> "$LOG" 2>&1
-    ok "Kode opdateret"
-elif [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/main.py" ]; then
-    ok "Kode til stede (ikke git-managed)"
-else
-    git clone "$REPO" "$INSTALL_DIR" >> "$LOG" 2>&1
-    if [ $? -eq 0 ]; then ok "Kode hentet"
-    else warn "Git clone fejlede — kopiér koden manuelt fra PC"; fi
-fi
-
-# Patch playwright stub efter kode er hentet
-if [ -f "$INSTALL_DIR/aula_playwright_android.py" ]; then
-    cp "$INSTALL_DIR/aula_playwright_android.py" "$INSTALL_DIR/aula_playwright.py"
-    ok "Playwright Android stub aktiveret"
-fi
-
-# ── Trin 6: .env setup ────────────────────────────────────────────────────────
+# ── Trin 5: .env setup ───────────────────────────────────────────────────────
 cd "$INSTALL_DIR"
 if [ ! -f ".env" ]; then
     step "Opretter .env..."
@@ -94,7 +84,7 @@ else
     skip ".env konfiguration"
 fi
 
-# ── Trin 7: Termux:Boot auto-start ───────────────────────────────────────────
+# ── Trin 6: Termux:Boot auto-start ───────────────────────────────────────────
 step "Konfigurerer auto-start..."
 mkdir -p "$HOME/.termux/boot"
 cat > "$HOME/.termux/boot/start-familieoverblik.sh" << 'BOOT'
@@ -109,10 +99,10 @@ BOOT
 chmod +x "$HOME/.termux/boot/start-familieoverblik.sh"
 ok "Auto-start konfigureret"
 
-# ── Trin 8: Marker installation som fuldført ─────────────────────────────────
+# ── Trin 7: Marker installation som fuldført ─────────────────────────────────
 touch "$MARKER"
 
-# ── Trin 9: (Gen)start server ─────────────────────────────────────────────────
+# ── Trin 8: Start server ─────────────────────────────────────────────────────
 step "Starter server..."
 pkill -f uvicorn 2>/dev/null || true
 fuser -k 8000/tcp 2>/dev/null || true
