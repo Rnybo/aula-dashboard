@@ -458,6 +458,7 @@
     <div id="ev-info-modal">
       <h3 id="ev-info-title"></h3>
       <div class="ev-info-time" id="ev-info-time"></div>
+      <div id="ev-info-details" style="display:none;margin-bottom:8px;padding:8px;background:#f8f9fa;border-radius:6px"></div>
       <div class="ev-info-desc" id="ev-info-desc" style="display:none"></div>
       <span class="ev-info-cal" id="ev-info-cal"></span>
       <div id="ev-info-btns" class="ev-info-btns"></div>
@@ -1292,15 +1293,22 @@
     // ── Data loaders ──
     function normalizeAulaEvents(raw) {
       return raw.map(e => ({
-        title:      e.title || e.description || '(ingen titel)',
-        start:      e.startDateTime,
-        end:        e.endDateTime || null,
-        allDay:     e.isAllDayEvent || (e.endDateTime && (new Date(e.endDateTime) - new Date(e.startDateTime)) >= 23*3600000),
-        color:      'var(--blue-accent)',
-        owner:      (e.belongsToProfiles||[])[0] || null,
-        profiles:   e.belongsToProfiles || [],
-        source:     'aula',
-        id:         e.id || null,
+        title:       e.title || e.description || '(ingen titel)',
+        start:       e.startDateTime,
+        end:         e.endDateTime || null,
+        allDay:      e.isAllDayEvent || e.allDay || (e.endDateTime && (new Date(e.endDateTime) - new Date(e.startDateTime)) >= 23*3600000),
+        color:       'var(--blue-accent)',
+        owner:       (e.belongsToProfiles||[])[0] || null,
+        profiles:    e.belongsToProfiles || [],
+        source:      'aula',
+        id:          e.id || null,
+        location:    [e.primaryResourceText, e.additionalResourceText].filter(Boolean).join(', ') || '',
+        creator:     e.creatorName || '',
+        institution: e.institutionName || '',
+        type:        e.type || '',
+        responseRequired: e.responseRequired || false,
+        responseStatus:   e.responseStatus || null,
+        repeating:   !!e.repeating,
       }));
     }
 
@@ -1403,8 +1411,10 @@
         const isCustom = e.custom ? 'data-custom="1"' : '';
         const calsAttr = e.calendar ? `data-calendar="${e.calendar}"` : '';
         const descAttr = e.description ? `data-desc="${e.description.replace(/"/g,'&quot;').replace(/\n/g,'&#10;')}"` : '';
+        const extra = { location: e.location||'', creator: e.creator||'', institution: e.institution||'', responseRequired: e.responseRequired||false, responseStatus: e.responseStatus||null, repeating: e.repeating||false, source: e.source||'' };
+        const extraAttr = `data-extra='${JSON.stringify(extra).replace(/'/g,'&#39;')}'`;
         html += `<div class="cal-event" style="top:${topPct}%;height:${heightPct}%;min-height:20px;background:${color};left:calc(3px + ${l}%);width:calc(${w}% - 6px);right:auto" 
-          ${id} ${isCustom} ${calsAttr} ${descAttr} onclick="openEvInfo(this,event)"
+          ${id} ${isCustom} ${calsAttr} ${descAttr} ${extraAttr} onclick="openEvInfo(this,event)"
           data-title="${title.replace(/"/g,'&quot;')}" data-time="${ts}" data-color="${color}">
           <span class="ev-title">${title}</span><span class="ev-time">${ts}</span></div>`;
       });
@@ -1425,6 +1435,23 @@
       const descEl = document.getElementById('ev-info-desc');
       if (desc) { descEl.textContent = desc; descEl.style.display = 'block'; }
       else { descEl.textContent = ''; descEl.style.display = 'none'; }
+
+      // Extra details
+      let extra = {};
+      try { extra = JSON.parse(el.dataset.extra || '{}'); } catch(e) {}
+      const detailsEl = document.getElementById('ev-info-details');
+      const rows = [];
+      if (extra.location)    rows.push(`📍 ${extra.location}`);
+      if (extra.creator)     rows.push(`👤 ${extra.creator}`);
+      if (extra.institution) rows.push(`🏫 ${extra.institution}`);
+      if (extra.repeating)   rows.push(`🔁 Gentages`);
+      if (extra.responseRequired) {
+        const status = extra.responseStatus === 'accepted' ? '✅ Accepteret'
+          : extra.responseStatus === 'declined' ? '❌ Afvist' : '⏳ Afventer svar';
+        rows.push(`📋 ${status}`);
+      }
+      detailsEl.innerHTML = rows.map(r => `<div style="padding:3px 0;font-size:0.8rem;color:#444">${r}</div>`).join('');
+      detailsEl.style.display = rows.length ? 'block' : 'none';
       const cal = document.getElementById('ev-info-cal');
       cal.style.background = color; cal.textContent = isCustom ? '📌 Lokal begivenhed' : '📅 Kalender';
 
