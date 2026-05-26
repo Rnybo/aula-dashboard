@@ -430,9 +430,9 @@
       <h3>📅 Tilføj til kalender</h3>
       <div id="event-parse-status" style="font-size:0.8rem;color:#888;margin-bottom:12px;padding:8px;background:#f5f5f5;border-radius:6px">Analyserer tekst...</div>
       <div class="field"><label>Titel</label><input type="text" id="event-title" placeholder="Begivenhedstitel"></div>
-      <div class="field" style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox" id="event-allday" onchange="toggleAllDay(this.checked)" style="accent-color:var(--blue)">
-        <label for="event-allday" style="font-size:0.78rem;font-weight:600;color:#555;cursor:pointer">Heldagsarrangement</label>
+      <div class="field" style="display:flex;align-items:center;gap:6px;margin-bottom:14px">
+        <input type="checkbox" id="event-allday" onchange="toggleAllDay(this.checked)" style="accent-color:var(--blue);width:16px;height:16px">
+        <label for="event-allday" style="font-size:0.78rem;font-weight:600;color:#555;cursor:pointer;margin:0">Heldagsarrangement</label>
       </div>
       <div id="event-time-fields">
         <div class="field"><label>Startdato / tidspunkt</label><input type="datetime-local" id="event-start"></div>
@@ -444,7 +444,7 @@
       </div>
       <div class="field">
         <label>Kalender</label>
-        <div id="event-cal-options" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
+        <div id="event-cal-options" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;padding:10px;background:#f8f9fa;border-radius:8px"></div>
       </div>
       <div class="modal-btns">
         <button class="btn-save-local" onclick="saveEventLocal()">📌 Gem til Familieoverblik</button>
