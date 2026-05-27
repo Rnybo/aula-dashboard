@@ -8,3 +8,4 @@ pydantic
 icalendar
 recurring-ical-events
 zeroconf
+paho-mqtt

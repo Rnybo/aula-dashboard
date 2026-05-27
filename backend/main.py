@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from dotenv import load_dotenv
 from backend.aula_client import AulaClient
+from backend.mqtt_client import mqtt_client
 try:
     from backend.aula_playwright import AulaPlaywright
 except ModuleNotFoundError:
@@ -63,24 +64,31 @@ _ensure_env_key("WEATHER_LON", "")
 
 app = FastAPI(docs_url=None, redoc_url=None)
 client = AulaClient()
-playwright_login = AulaPlaywright(on_success=client.update_credentials)
+def _on_login_success(creds):
+    client.update_credentials(creds)
+    mqtt_client.publish("familieoverblik/session/state", {"valid": True}, retain=True)
+
+playwright_login = AulaPlaywright(on_success=_on_login_success)
 
 API_KEY = os.getenv("API_KEY", "")
 if not API_KEY:
     logging.warning("API_KEY is not set — API is unprotected!")
 
 async def _session_keepalive():
-    """Ping Aula every 6 hours to keep session alive."""
+    """Ping Aula every 6 hours to keep session alive. Publishes state via MQTT."""
     while True:
         await asyncio.sleep(6 * 3600)
         try:
             valid = client.check_session()
             logging.getLogger("keepalive").info(f"Session keepalive: {'OK' if valid else 'EXPIRED'}")
+            mqtt_client.publish("familieoverblik/session/state", {"valid": valid}, retain=True)
         except Exception as e:
             logging.getLogger("keepalive").warning(f"Keepalive failed: {e}")
+            mqtt_client.publish("familieoverblik/session/state", {"valid": False}, retain=True)
 
 @app.on_event("startup")
 async def startup():
+    mqtt_client.connect()
     asyncio.create_task(_session_keepalive())
 
 class NoCacheMiddleware(BaseHTTPMiddleware):

@@ -29,11 +29,16 @@ printf "==================================================\n"
 if ! command -v git > /dev/null 2>&1 || ! command -v python > /dev/null 2>&1; then
     step "Installerer Termux-pakker..."
     DEBIAN_FRONTEND=noninteractive pkg update -y >> "$LOG" 2>&1 || true
-    DEBIAN_FRONTEND=noninteractive pkg install -y bash python git openssh nodejs curl >> "$LOG" 2>&1 \
+    DEBIAN_FRONTEND=noninteractive pkg install -y bash python git openssh nodejs curl mosquitto >> "$LOG" 2>&1 \
         || warn "Nogle pakker fejlede — fortsætter"
     ok "Termux-pakker installeret"
 else
     skip "Termux-pakker"
+    # Sørg for mosquitto er installeret selv om andre pakker allerede er der
+    if ! command -v mosquitto > /dev/null 2>&1; then
+        DEBIAN_FRONTEND=noninteractive pkg install -y mosquitto >> "$LOG" 2>&1 || true
+        ok "Mosquitto installeret"
+    fi
 fi
 
 # ── Trin 2: Hent/opdater kode (ALTID) ────────────────────────────────────────
@@ -61,7 +66,7 @@ if ! python -c "import fastapi" > /dev/null 2>&1; then
     step "Installerer Python pakker..."
     pip install --quiet --break-system-packages \
         fastapi uvicorn requests beautifulsoup4 python-dotenv \
-        icalendar recurring-ical-events zeroconf httpx >> "$LOG" 2>&1
+        icalendar recurring-ical-events zeroconf httpx paho-mqtt >> "$LOG" 2>&1
     if [ $? -eq 0 ]; then ok "Python pakker installeret"
     else warn "Nogle Python pakker fejlede — tjek $LOG"; fi
 else
@@ -109,8 +114,16 @@ cat > "$HOME/.termux/boot/start-familieoverblik.sh" << 'BOOT'
 export PATH="/data/data/com.termux/files/usr/bin:$PATH"
 export HOME="/data/data/com.termux/files/home"
 cd ~/home-dashboard
-pkill -f uvicorn 2>/dev/null
+
+# Start Mosquitto broker
+pkill -f mosquitto 2>/dev/null
+sleep 1
+nohup mosquitto -c mosquitto.conf > ~/home-dashboard/mosquitto.log 2>&1 &
 sleep 2
+
+# Start uvicorn
+pkill -f uvicorn 2>/dev/null
+sleep 1
 nohup uvicorn backend.main:app --host 0.0.0.0 --port 8000 > ~/home-dashboard/server.log 2>&1 &
 BOOT
 chmod +x "$HOME/.termux/boot/start-familieoverblik.sh"
@@ -118,9 +131,12 @@ ok "Auto-start konfigureret"
 
 # ── Trin 7: Start server ─────────────────────────────────────────────────────
 step "Starter server..."
+pkill -f mosquitto 2>/dev/null || true
 pkill -f uvicorn 2>/dev/null || true
 fuser -k 8000/tcp 2>/dev/null || true
 sleep 1
+nohup mosquitto -c "$INSTALL_DIR/mosquitto.conf" > "$INSTALL_DIR/mosquitto.log" 2>&1 &
+sleep 2
 nohup uvicorn backend.main:app --host 0.0.0.0 --port 8000 > "$INSTALL_DIR/server.log" 2>&1 &
 sleep 3
 
