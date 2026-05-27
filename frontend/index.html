@@ -1732,6 +1732,7 @@
     }
 
     function onDayColClick(evt, col) {
+      if (clLocked) return;  // børnelås
       // Ignore if clicking on an existing event
       if (evt.target.closest('.cal-event') || evt.target.closest('.presence-bar')) return;
       const dateStr = col.dataset.date;
@@ -1786,6 +1787,7 @@
     }
     let _eventText = '';
     async function openEventModal(text) {
+      if (clLocked) return;  // børnelås
       _eventText = text;
       document.getElementById('event-title').value = '';
       document.getElementById('event-start').value = '';
