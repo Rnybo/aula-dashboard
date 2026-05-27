@@ -9,3 +9,5 @@ icalendar
 recurring-ical-events
 zeroconf
 paho-mqtt
+httpx
+paramiko
