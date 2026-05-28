@@ -86,10 +86,50 @@ async def _session_keepalive():
             logging.getLogger("keepalive").warning(f"Keepalive failed: {e}")
             mqtt_client.publish("familieoverblik/session/state", {"valid": False}, retain=True)
 
+async def _google_calendar_sync():
+    """Every 5 minutes: remove local custom events that have been deleted in Google Calendar."""
+    import asyncio, requests as req
+    log = logging.getLogger("gcal_sync")
+    await asyncio.sleep(60)  # wait 1 min after startup before first run
+    while True:
+        try:
+            access_token = _get_google_access_token()
+            if access_token:
+                cal_id = os.getenv("GOOGLE_DEFAULT_CALENDAR_ID", "primary")
+                headers = {"Authorization": f"Bearer {access_token}"}
+                events = load_custom_events()
+                changed = False
+                for ev in list(events):
+                    gid = ev.get("google_event_id", "")
+                    if not gid:
+                        continue
+                    r = req.get(
+                        f"https://www.googleapis.com/calendar/v3/calendars/{cal_id}/events/{gid}",
+                        headers=headers, timeout=8
+                    )
+                    if r.status_code == 404:
+                        events = [e for e in events if e.get("id") != ev.get("id")]
+                        log.info(f"Removed locally deleted Google event: {ev.get('title')} ({gid})")
+                        changed = True
+                    elif r.status_code == 200:
+                        data = r.json()
+                        if data.get("status") == "cancelled":
+                            events = [e for e in events if e.get("id") != ev.get("id")]
+                            log.info(f"Removed cancelled Google event: {ev.get('title')} ({gid})")
+                            changed = True
+                if changed:
+                    save_custom_events(events)
+                    mqtt_client.publish("familieoverblik/events/sync", {"action": "refresh"})
+        except Exception as e:
+            logging.getLogger("gcal_sync").warning(f"Sync failed: {e}")
+        await asyncio.sleep(300)  # 5 minutes
+
+
 @app.on_event("startup")
 async def startup():
     mqtt_client.connect()
     asyncio.create_task(_session_keepalive())
+    asyncio.create_task(_google_calendar_sync())
 
 class NoCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
