@@ -189,6 +189,105 @@ class AulaClient:
         resp.raise_for_status()
         return resp.json().get("data", []) or []
 
+    def get_groups(self) -> list:
+        """Return children's primary groups with all children and their parents.
+
+        Strategy:
+        1. From getProfileContext, get each child's institutionProfileId and institution.
+        2. Call groups.getGroupsForProfile for each child to find their mainGroupId.
+        3. Call getMemberships for each unique mainGroupId.
+        4. Return structured list of groups with children and parents.
+        """
+        profile_data = self.get_profile().get("data", {})
+        institutions = profile_data.get("institutions") or []
+
+        # Collect children across all institutions
+        # child: {name, institutionProfileId, institutionCode}
+        my_children = []
+        for inst in institutions:
+            for child in (inst.get("children") or []):
+                my_children.append({
+                    "name": child.get("name", ""),
+                    "institutionProfileId": child.get("institutionProfileId"),
+                    "institutionCode": inst.get("institutionCode", ""),
+                })
+
+        if not my_children:
+            return []
+
+        # Find groupId for each child via groups.getGroupsForProfile
+        child_group_ids = {}  # child institutionProfileId -> mainGroupId
+        for child in my_children:
+            pid = child["institutionProfileId"]
+            if not pid:
+                continue
+            try:
+                data = self._get("groups.getGroupsForProfile", f"&profileId={pid}")
+                groups = data.get("data", []) or []
+                # Find the group where type == "primary" or pick the first one
+                for g in groups:
+                    if g.get("type") in ("primary", "institutional") or not child_group_ids.get(pid):
+                        child_group_ids[pid] = g.get("id")
+                        if g.get("type") == "primary":
+                            break
+            except Exception as e:
+                logger.warning(f"Could not get groups for child {pid}: {e}")
+
+        unique_group_ids = list(dict.fromkeys(v for v in child_group_ids.values() if v))
+
+        result = []
+        for group_id in unique_group_ids:
+            try:
+                # Get group name
+                group_data = self._get("groups.getGroupById", f"&groupId={group_id}")
+                group_name = group_data.get("data", {}).get("name", f"Gruppe {group_id}")
+
+                # Get all memberships
+                memberships_data = self._get("groups.getMemberships", f"&groupId={group_id}")
+                memberships = memberships_data.get("data", {}).get("memberships", []) or []
+
+                children = []
+                for m in memberships:
+                    if m.get("institutionRole") not in ("daycare", "student", "child"):
+                        continue
+                    ip = m.get("institutionProfile", {})
+                    pic = ip.get("profilePicture") or {}
+                    pic_key = pic.get("key", "")
+                    photo_url = f"https://media-prod.aula.dk/{pic_key}_200x200.jpg" if pic_key else ""
+
+                    # Parents are in relations with role guardian
+                    parents = []
+                    for rel in (ip.get("relations") or []):
+                        if rel.get("role") == "guardian":
+                            rel_pic = rel.get("profilePicture") or {}
+                            rel_pic_key = rel_pic.get("key", "")
+                            parents.append({
+                                "name": rel.get("fullName", ""),
+                                "gender": rel.get("gender", ""),
+                                "photoUrl": f"https://media-prod.aula.dk/{rel_pic_key}_200x200.jpg" if rel_pic_key else "",
+                            })
+
+                    children.append({
+                        "id": ip.get("id"),
+                        "name": ip.get("fullName", ""),
+                        "gender": ip.get("gender", ""),
+                        "photoUrl": photo_url,
+                        "parents": parents,
+                    })
+
+                # Sort children alphabetically by first name
+                children.sort(key=lambda c: c["name"])
+
+                result.append({
+                    "id": group_id,
+                    "name": group_name,
+                    "children": children,
+                })
+            except Exception as e:
+                logger.warning(f"Could not get group {group_id}: {e}")
+
+        return result
+
     def get_presence(self, inst_profile_ids: list, from_date: str = None, to_date: str = None) -> list:
         today = datetime.date.today()
         if not from_date:

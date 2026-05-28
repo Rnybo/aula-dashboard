@@ -425,6 +425,11 @@ def gallery_user_media(inst_profile_ids: str = "", index: int = 0, limit: int = 
     return aula_call(lambda: client.get_user_media(ids, index, limit))
 
 
+@app.get("/api/groups", dependencies=[Depends(check_api_key)])
+def groups():
+    return aula_call(client.get_groups)
+
+
 @app.post("/api/logout")
 def logout():
     import json
