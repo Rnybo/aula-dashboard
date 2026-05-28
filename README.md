@@ -108,18 +108,30 @@ Fetched from [met.no](https://api.met.no) — no API key needed. Set `WEATHER_LA
 ```
 home-dashboard/
 ├── backend/
-│   ├── main.py                # FastAPI — all API endpoints
-│   ├── aula_client.py         # Aula API client
-│   ├── aula_playwright.py     # MitID login via Playwright (PC)
-│   └── aula_playwright_android.py  # MitID login via Node.js (Android)
+│   ├── main.py                     # FastAPI app setup, middleware, startup tasks
+│   ├── store.py                    # Thread-safe custom_events.json r/w
+│   ├── google_utils.py             # Google Calendar OAuth helpers
+│   ├── aula_client.py              # Aula API client
+│   ├── aula_playwright.py          # MitID login via Playwright (PC)
+│   ├── aula_playwright_android.py  # MitID login via Node.js (Android)
+│   └── routers/
+│       ├── aula.py                 # Aula endpoints (login, profile, posts, gallery...)
+│       ├── custom.py               # Custom events CRUD + parse + ICS feed
+│       ├── google.py               # Google Calendar + OAuth endpoints
+│       ├── settings.py             # Settings GET/POST
+│       └── weather.py              # Weather (Met.no)
 ├── frontend/
-│   ├── index.html             # Single-page dashboard UI
-│   └── settings.html          # Browser-based configuration
+│   ├── index.html                  # Single-page dashboard UI
+│   └── settings.html               # Browser-based configuration
 ├── scripts/
-│   ├── install.sh             # One-click Android/Termux installer
-│   ├── start.bat              # Windows start script
-│   ├── full_sync.py           # Deploy to tablet via SSH
-│   └── login_node.js          # Node.js MitID login for Android
+│   ├── install.sh                  # One-click Android/Termux installer
+│   ├── start.bat                   # Windows start script
+│   ├── full_sync.py                # Deploy to tablet via SSH
+│   └── login_node.js               # Node.js MitID login for Android
+├── tests/
+│   └── test_api.py                 # API test suite (run: python tests/test_api.py)
+├── docs/
+│   └── API.md                      # Full API reference
 ├── requirements.txt
 └── .env.example
 ```

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="da">
 <head>
   <meta charset="UTF-8" />
@@ -657,6 +657,11 @@
     const CAL_COLORS = { faelles: '#e53935' };
     const CHILD_PALETTE = ['#1e88e5','#43a047','#8e24aa','#fb8c00','#00897b'];
     function childColor(idx) { return CHILD_PALETTE[idx % CHILD_PALETTE.length]; }
+    function aulaImg(url) {
+      if (!url) return '';
+      if (url.startsWith('http')) return `/api/profile-picture?url=${encodeURIComponent(url)}`;
+      return url;
+    }
     function calColorMap() {
       const m = { 'cal-faelles': { label: 'Fælles', color: CAL_COLORS.faelles } };
       CHILDREN.forEach((c,i) => m['cal-child-' + c.id] = { label: c.name, color: childColor(i) });
@@ -801,11 +806,15 @@
         CHILDREN = cfg.children || [];
         INST_PROFILE_IDS = cfg.inst_profile_ids || [];
         CHILDREN.forEach(c => { c._photoUrl = c.photoUrl; });
-        try{localStorage.setItem('ls_children',JSON.stringify(CHILDREN));localStorage.setItem('ls_inst_ids',JSON.stringify(INST_PROFILE_IDS));}catch(e){}
+        try{
+          const toStore = CHILDREN.map(c => ({ ...c, photoUrl: '' }));
+          localStorage.setItem('ls_children', JSON.stringify(toStore));
+          localStorage.setItem('ls_inst_ids', JSON.stringify(INST_PROFILE_IDS));
+        }catch(e){}
         document.getElementById('child-tabs').innerHTML = [
           ...CHILDREN.map((c, i) =>
             `<div class="tab ${i===0?'active':''}" onclick="switchTab(${i})" style="border-bottom:3px solid ${childColor(i)}">
-              ${c.photoUrl ? `<img src="${c.photoUrl}" alt="${c.name}" onerror="this.style.display='none'">` : ''}
+              ${c.photoUrl ? `<img src="${aulaImg(c.photoUrl)}" alt="${c.name}" onerror="this.style.display='none'">` : ''}
               ${c.name}
             </div>`
           ),
@@ -935,7 +944,7 @@
         if (type === 'event') {
           const label = date.toLocaleDateString('da-DK', {weekday:'short', day:'numeric', month:'short'});
           const avatars = CHILDREN.filter(c => (d.profiles||d.belongsToProfiles||[]).includes(c.id)).map(c =>
-            c._photoUrl ? `<img src="${c._photoUrl}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;border:1px solid #cce4f7;margin-right:2px">` : ''
+            c._photoUrl ? `<img src="${aulaImg(c._photoUrl)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;border:1px solid #cce4f7;margin-right:2px">` : ''
           ).join('');
           return `<div class="event-item"><div class="event-date">${label}</div>
             <div style="flex:1"><div class="event-title">${d.title||'(ingen titel)'}</div>
@@ -944,7 +953,7 @@
           const label = date.toLocaleDateString('da-DK', {day:'numeric', month:'short'});
           const avatars = (d.relatedChildrenIds||[]).map(id => {
             const c = CHILDREN.find(c => c.id === id);
-            return c?._photoUrl ? `<img src="${c._photoUrl}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;border:1px solid #cce4f7;margin-right:2px">` : '';
+            return c?._photoUrl ? `<img src="${aulaImg(c._photoUrl)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;border:1px solid #cce4f7;margin-right:2px">` : '';
           }).join('');
           return `<div class="event-item"><div class="event-date birthday">🎂 ${label}</div>
             <div style="flex:1"><div class="event-title">${d.name}</div>
@@ -1351,17 +1360,18 @@
         const children = group.children || [];
         const myKidsHtml = (group.myChildren || []).map(k => {
           const ini = k.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
-          return k.photoUrl
-            ? `<img src="${k.photoUrl}" title="${k.name}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;border:2px solid var(--blue);margin-left:4px" onerror="this.style.display='none'">`
-            : `<span style="background:var(--blue);color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;margin-left:4px">${ini}</span>`;
+          // Brug signeret URL fra CHILDREN (profile-config) hvis tilgængelig — match på fornavn
+          const child = CHILDREN.find(c => k.name.startsWith(c.name));
+          const picUrl = child?.photoUrl || k.photoSignedUrl || k.photoUrl;
+          return picUrl
+            ? `<img src="${aulaImg(picUrl)}" title="${k.name}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;border:2px solid var(--blue);margin-left:4px" onerror="this.style.display='none'">`
+            : `<span style="background:var(--blue);color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;margin-left:4px" title="${k.name}">${ini}</span>`;
         }).join('');
 
         const childrenHtml = children.map((child, ci) => {
           const ini = child.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
           const isOwn = child.isOwnChild;
-          const avatarHtml = child.photoUrl
-            ? `<img class="klasse-child-avatar" src="${child.photoUrl}" alt="${child.name}" style="${isOwn ? 'border-color:var(--blue);border-width:3px' : ''}" onerror="this.outerHTML='<div class=\\'klasse-child-avatar\\'>${ini}</div>'">`
-            : `<div class="klasse-child-avatar" style="${isOwn ? 'background:var(--blue);color:#fff' : ''}">${ini}</div>`;
+          const avatarHtml = `<div class="klasse-child-avatar" style="${isOwn ? 'background:var(--blue);color:#fff' : ''}">${ini}</div>`;
           return `
             <div class="klasse-child-row${isOwn ? ' own-child' : ''}" onclick="toggleParents(${gi},${ci},${group.id},${child.id})">
               ${avatarHtml}
@@ -1957,7 +1967,7 @@
         sessionWasExpired = true;
         // Restore cached Aula data from localStorage
         try{const c=localStorage.getItem('ls_children');if(c){CHILDREN=JSON.parse(c);INST_PROFILE_IDS=JSON.parse(localStorage.getItem('ls_inst_ids')||'[]');
-          document.getElementById('child-tabs').innerHTML=[...CHILDREN.map((c,i)=>`<div class="tab ${i===0?'active':''}" onclick="switchTab(${i})">${c.photoUrl?`<img src="${c.photoUrl}" alt="${c.name}" onerror="this.style.display='none'">`:''}${c.name}</div>`),
+          document.getElementById('child-tabs').innerHTML=[...CHILDREN.map((c,i)=>`<div class="tab ${i===0?'active':''}" onclick="switchTab(${i})">${c.photoUrl?`<img src="${aulaImg(c.photoUrl)}" alt="${c.name}" onerror="this.style.display='none'">`:''}${c.name}</div>`),
           ...GOOGLE_TABS.map((g,i)=>`<div class="tab" onclick="switchGoogleTab(${i})" style="border-left:3px solid ${g.color}"><span style="color:${g.color}">📅</span> ${g.name}</div>`)].join('');}}catch(e){}
         try{const e=localStorage.getItem('ls_events');if(e){allEvents=JSON.parse(e);if(!Array.isArray(allEvents))allEvents=[];}}catch(e){}
         try{const p=localStorage.getItem('ls_presence');if(p){presenceData=JSON.parse(p)||{};}}catch(e){}

@@ -1,0 +1,103 @@
+"""
+routers/settings.py — Settings GET/POST endpoints
+"""
+import os
+import secrets
+from pathlib import Path
+
+from dotenv import load_dotenv
+from fastapi import APIRouter, Request
+
+router = APIRouter()
+ROOT = Path(__file__).parent.parent.parent
+
+
+@router.get("/api/settings")
+def get_settings():
+    result = {
+        "api_key":                    os.getenv("API_KEY", ""),
+        "anthropic_key":              "***" if os.getenv("ANTHROPIC_API_KEY") else "",
+        "dashboard_title":            os.getenv("DASHBOARD_TITLE", "Hjem"),
+        "accounts":                   [],
+        "google_calendars":           [],
+        "weather_lat":                os.getenv("WEATHER_LAT", "56.127"),
+        "weather_lon":                os.getenv("WEATHER_LON", "10.178"),
+        "google_client_id":           "***" if os.getenv("GOOGLE_CLIENT_ID") else "",
+        "google_client_secret":       "***" if os.getenv("GOOGLE_CLIENT_SECRET") else "",
+        "google_oauth_connected":     bool(os.getenv("GOOGLE_OAUTH_REFRESH_TOKEN")),
+        "google_default_calendar_id": os.getenv("GOOGLE_DEFAULT_CALENDAR_ID", "primary"),
+    }
+    for suffix in [""] + [f"_{i}" for i in range(2, 11)]:
+        u = os.getenv(f"MITID_USERNAME{suffix}", "")
+        i = os.getenv(f"MITID_IDENTITY{suffix}", "")
+        if u or i:
+            result["accounts"].append({"username": u, "identity": i})
+    seen = set()
+    for idx in range(1, 11):
+        suffix = "" if idx == 1 else f"_{idx}"
+        url  = os.getenv(f"GOOGLE_CALENDAR_ICS{suffix}", "")
+        name = os.getenv(f"GOOGLE_CALENDAR_NAME{suffix}", "")
+        if url and url not in seen:
+            seen.add(url)
+            result["google_calendars"].append({"url": url, "name": name})
+    return result
+
+
+@router.post("/api/settings")
+async def save_settings(request: Request):
+    data = await request.json()
+    env_path = ROOT / ".env"
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+
+    def set_env(key: str, value: str):
+        nonlocal lines
+        for i, line in enumerate(lines):
+            if line.startswith(f"{key}="):
+                lines[i] = f"{key}={value}" if value else ""
+                return
+        if value:
+            lines.append(f"{key}={value}")
+
+    lines = [l for l in lines if l.strip() and not l.strip().startswith("#")]
+
+    api_key = data.get("api_key", "").strip() or secrets.token_hex(32)
+    set_env("API_KEY", api_key)
+
+    lines = [l for l in lines if not (l.startswith("MITID_USERNAME") or l.startswith("MITID_IDENTITY"))]
+    for idx, acc in enumerate(data.get("accounts", [])[:20]):
+        u, i = acc.get("username", "").strip(), acc.get("identity", "").strip()
+        if u or i:
+            suffix = "" if idx == 0 else f"_{idx+1}"
+            lines.append(f"MITID_USERNAME{suffix}={u}")
+            lines.append(f"MITID_IDENTITY{suffix}={i}")
+
+    lines = [l for l in lines if not (l.startswith("GOOGLE_CALENDAR_ICS") or l.startswith("GOOGLE_CALENDAR_NAME"))]
+    for idx, cal in enumerate(data.get("google_calendars", [])[:20]):
+        url, name = cal.get("url", "").strip(), cal.get("name", "").strip()
+        if url:
+            suffix = "" if idx == 0 else f"_{idx+1}"
+            lines.append(f"GOOGLE_CALENDAR_ICS{suffix}={url}")
+            lines.append(f"GOOGLE_CALENDAR_NAME{suffix}={name}")
+
+    gcid = data.get("google_client_id", "").strip()
+    gcsc = data.get("google_client_secret", "").strip()
+    if gcid and gcid != "***": set_env("GOOGLE_CLIENT_ID", gcid)
+    if gcsc and gcsc != "***": set_env("GOOGLE_CLIENT_SECRET", gcsc)
+    gcal = data.get("google_default_calendar_id", "").strip()
+    if gcal: set_env("GOOGLE_DEFAULT_CALENDAR_ID", gcal)
+    if data.get("weather_lat"): set_env("WEATHER_LAT", data["weather_lat"])
+    if data.get("weather_lon"): set_env("WEATHER_LON", data["weather_lon"])
+    title = data.get("dashboard_title", "Hjem").strip() or "Hjem"
+    set_env("DASHBOARD_TITLE", title)
+    os.environ["DASHBOARD_TITLE"] = title
+    ak = data.get("anthropic_key", "").strip()
+    if ak and ak != "***": set_env("ANTHROPIC_API_KEY", ak)
+
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    load_dotenv(override=True)
+
+    # Update API_KEY in main module
+    import backend.main as _main
+    _main.API_KEY = os.getenv("API_KEY", "")
+
+    return {"ok": True, "api_key": api_key}
