@@ -66,9 +66,13 @@ def google_calendar(from_date: str = "", to_date: str = ""):
                 all_day = not hasattr(val, "hour")
                 start_iso = val.isoformat() if all_day else val.astimezone().isoformat()
                 end_val   = dtend.dt if dtend else val
-                end_iso   = end_val.isoformat() if all_day else (
-                    end_val.astimezone().isoformat() if hasattr(end_val, "hour") else end_val.isoformat()
-                )
+                if all_day:
+                    # ICS all-day DTEND is exclusive (day after) — subtract 1 day for display
+                    import datetime as _dt
+                    end_display = end_val - _dt.timedelta(days=1) if isinstance(end_val, _dt.date) and not isinstance(end_val, _dt.datetime) else end_val
+                    end_iso = end_display.isoformat()
+                else:
+                    end_iso = end_val.astimezone().isoformat() if hasattr(end_val, "hour") else end_val.isoformat()
                 ext_cals = ""
                 # Check if this is a locally created event via familieoverblik
                 uid = str(component.get("UID", ""))

@@ -73,6 +73,10 @@ test("GET /api/status returnerer session_valid", t_status)
 def t_frontend():
     r = requests.get(f"{BASE_URL}/", timeout=5)
     assert r.status_code == 200 and "<html" in r.text.lower(), "ikke HTML"
+    assert "app.js" in r.text, "mangler app.js script reference"
+    assert "<style>" not in r.text, "CSS er ikke eksternt"
+    js = requests.get(f"{BASE_URL}/js/app.js", timeout=5)
+    assert "_dashboardLoaded" in js.text, "mangler _dashboardLoaded i app.js"
 test("GET / returnerer HTML", t_frontend)
 
 def t_settings():
