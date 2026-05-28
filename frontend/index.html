@@ -1292,21 +1292,21 @@
 
           if (tpl && !tpl.isOnVacation && tpl.entryTime) {
             const [eh,em]=tpl.entryTime.split(':').map(Number);
-            html += `<div class="presence-bar" style="top:${pct(eh*60+em)}%;height:${hourH*0.4}px;min-height:14px">🧒🎒 ${tpl.entryTime.substring(0,5)}</div>`;
+            html += `<div class="presence-bar" style="top:${pct(eh*60+em)}%;height:${hourH*0.4}px;min-height:14px;border-left-color:${tabColor};color:${tabColor}">🧒🎒 ${tpl.entryTime.substring(0,5)}</div>`;
           }
           if (tpl && !tpl.isOnVacation && tpl.exitTime) {
             const [xh,xm]=tpl.exitTime.split(':').map(Number), lbl=tpl.exitWith||'';
-            html += `<div class="presence-bar" style="top:${pct(xh*60+xm)}%;height:${hourH*0.4}px;min-height:14px;background:#e8f7e8;border-left-color:#4caf50;color:#2e7d32">🏠 ${tpl.exitTime.substring(0,5)}${lbl?' · '+lbl:''}</div>`;
+            html += `<div class="presence-bar" style="top:${pct(xh*60+xm)}%;height:${hourH*0.4}px;min-height:14px;border-left-color:${tabColor};color:${tabColor}">🏠 ${tpl.exitTime.substring(0,5)}${lbl?' · '+lbl:''}</div>`;
           }
           const presenceEvents = [];
           if (tpl && !tpl.isOnVacation) {
             const ds = dateStr;
             if (tpl.entryTime) presenceEvents.push({
-              _presence: true, _label: `🧒🎒 ${tpl.entryTime.substring(0,5)}`, _style: '',
+              _presence: true, _label: `🧒🎒 ${tpl.entryTime.substring(0,5)}`, _style: `border-left-color:${tabColor};color:${tabColor}`,
               start: `${ds}T${tpl.entryTime}`, end: `${ds}T${tpl.entryTime.replace(/(\d+):(\d+)/,(_,h,m)=>String(parseInt(h)*60+parseInt(m)+30).replace(/(\d+)/,n=>String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')))}`,
             });
             if (tpl.exitTime) presenceEvents.push({
-              _presence: true, _label: `🏠 ${tpl.exitTime.substring(0,5)}${tpl.exitWith?' · '+tpl.exitWith:''}`, _style: 'background:#e8f7e8;border-left:3px solid #4caf50;color:#2e7d32',
+              _presence: true, _label: `🏠 ${tpl.exitTime.substring(0,5)}${tpl.exitWith?' · '+tpl.exitWith:''}`, _style: `border-left-color:${tabColor};color:${tabColor}`,
               start: `${ds}T${tpl.exitTime}`, end: null,
             });
           }
