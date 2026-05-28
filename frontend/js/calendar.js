@@ -364,7 +364,8 @@
               const endRaw = e.end && e.end !== e.start ? e.end : e.start;
               const end = new Date(endRaw + 'T00:00:00');
               const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-              return dayStart >= start && dayStart <= end;
+              // ICS all-day DTEND is exclusive — use < for end comparison
+              return dayStart >= start && dayStart < end;
             })
           : allEvents.filter(e => {
               if (!e.allDay) return false;
@@ -378,7 +379,7 @@
               const endRaw = e.end && e.end !== e.start ? e.end : e.start;
               const end = new Date(endRaw + 'T00:00:00');
               const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-              return dayStart >= start && dayStart <= end;
+              return dayStart >= start && dayStart < end;
             }));
         const allDayBadges = dayAllDay.map(e => {
           const idx = window._evRegistry.push({
