@@ -65,16 +65,20 @@ fi
 if ! python -c "import fastapi" > /dev/null 2>&1; then
     step "Installerer Python pakker..."
     pip install --quiet --break-system-packages \
-        fastapi uvicorn requests beautifulsoup4 python-dotenv \
+        fastapi uvicorn websockets requests beautifulsoup4 python-dotenv \
         icalendar recurring-ical-events zeroconf httpx paho-mqtt >> "$LOG" 2>&1
     if [ $? -eq 0 ]; then ok "Python pakker installeret"
     else warn "Nogle Python pakker fejlede — tjek $LOG"; fi
 else
     skip "Python pakker"
-    # Sørg for paho-mqtt er installeret selv om andre pakker allerede er der
+    # Sørg for paho-mqtt og websockets er installeret selv om andre pakker allerede er der
     if ! python -c "import paho.mqtt" > /dev/null 2>&1; then
         pip install --quiet --break-system-packages paho-mqtt >> "$LOG" 2>&1 \
             && ok "paho-mqtt installeret" || warn "paho-mqtt fejlede"
+    fi
+    if ! python -c "import websockets" > /dev/null 2>&1; then
+        pip install --quiet --break-system-packages websockets >> "$LOG" 2>&1 \
+            && ok "websockets installeret" || warn "websockets fejlede"
     fi
 fi
 
