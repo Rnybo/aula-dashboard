@@ -154,15 +154,36 @@ def _run(known_hosts: list[str] | None):
 
     try:
         if known_hosts:
-            # Direkte forbindelse via kendte IP-adresser (omgår mDNS)
             log.info("Cast: forbinder direkte til %s", known_hosts)
             chromecasts, browser = pychromecast.get_listed_chromecasts(known_hosts=known_hosts)
         else:
-            # mDNS discovery
+            # Ny CastBrowser API
             log.info("Cast: starter mDNS discovery...")
-            chromecasts, browser = pychromecast.get_chromecasts(timeout=15)
+            import zeroconf
+            stop_event = threading.Event()
+            found = []
 
-        log.info("Cast: fandt %d enheder", len(chromecasts))
+            class _Listener(pychromecast.discovery.AbstractCastListener):
+                def add_cast(self, uuid, service):
+                    found.append(uuid)
+                def remove_cast(self, uuid, service, cast_info):
+                    pass
+                def update_cast(self, uuid, service):
+                    pass
+
+            listener = _Listener()
+            zc = zeroconf.Zeroconf()
+            browser = pychromecast.discovery.CastBrowser(listener, zc)
+            browser.start_discovery()
+            time.sleep(10)  # Vent på discovery
+            browser.stop_discovery()
+            zc.close()
+
+            if found:
+                chromecasts, _ = pychromecast.get_listed_chromecasts(
+                    uuids=found, zeroconf_instance=zeroconf.Zeroconf()
+                )
+            log.info("Cast: fandt %d enheder via mDNS", len(chromecasts))
 
         for cc in chromecasts:
             name = cc.name
