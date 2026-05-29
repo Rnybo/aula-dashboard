@@ -168,6 +168,10 @@ async def _google_calendar_sync():
 @app.on_event("startup")
 async def startup():
     mqtt_client.connect()
+    # Cast service — known_hosts fra env eller mDNS discovery
+    from backend.cast_service import start as cast_start
+    cast_hosts = [h.strip() for h in os.getenv("CAST_HOSTS", "").split(",") if h.strip()]
+    cast_start(known_hosts=cast_hosts or None)
     asyncio.create_task(_session_keepalive())
     asyncio.create_task(_google_calendar_sync())
 
@@ -200,12 +204,14 @@ from backend.routers import google as google_router
 from backend.routers import aula as aula_router
 from backend.routers import settings as settings_router
 from backend.routers import spotify as spotify_router
+from backend.routers import cast as cast_router
 app.include_router(custom_router.router)
 app.include_router(weather_router.router, dependencies=[Depends(check_api_key)])
 app.include_router(google_router.router, dependencies=[Depends(check_api_key)])
 app.include_router(aula_router.router, dependencies=[Depends(check_api_key)])
 app.include_router(settings_router.router)
-app.include_router(spotify_router.router)  # ingen auth — settings bruges fra settings.html uden API-nøgle
+app.include_router(spotify_router.router)
+app.include_router(cast_router.router, dependencies=[Depends(check_api_key)])  # ingen auth — settings bruges fra settings.html uden API-nøgle
 
 
 def aula_call(fn):
