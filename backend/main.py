@@ -199,11 +199,13 @@ from backend.routers import weather as weather_router
 from backend.routers import google as google_router
 from backend.routers import aula as aula_router
 from backend.routers import settings as settings_router
+from backend.routers import spotify as spotify_router
 app.include_router(custom_router.router)
 app.include_router(weather_router.router, dependencies=[Depends(check_api_key)])
 app.include_router(google_router.router, dependencies=[Depends(check_api_key)])
 app.include_router(aula_router.router, dependencies=[Depends(check_api_key)])
-app.include_router(settings_router.router)  # ingen auth — settings bruges fra settings.html uden API-nøgle
+app.include_router(settings_router.router)
+app.include_router(spotify_router.router)  # ingen auth — settings bruges fra settings.html uden API-nøgle
 
 
 def aula_call(fn):

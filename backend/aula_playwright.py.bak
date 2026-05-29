@@ -122,7 +122,7 @@ class AulaPlaywright:
 
                 # Step 1: Navigate to Aula
                 await page.goto(AULA_URL, wait_until="domcontentloaded")
-                await page.wait_for_selector(".mit-id-logo-container", state="visible", timeout=15000)
+                await page.wait_for_timeout(3000)
                 await self._screenshot(page, "01_login_page")
 
                 # Step 2: Click MitID on Aula login page
@@ -136,41 +136,61 @@ class AulaPlaywright:
                 await self._screenshot(page, "03_mitid_page")
 
                 # Step 4: Click Fortsæt til login
-                await page.wait_for_selector("button:has-text('FORTSÆT')", state="visible", timeout=15000)
                 await page.get_by_role("button", name="FORTSÆT TIL LOGIN").click(timeout=10000)
+                await page.wait_for_timeout(4000)
                 await self._screenshot(page, "04_after_fortsaet")
 
-                # Step 5: Find and fill username — wait for JS visibility
+                # Step 5: Find and fill username
+                await page.wait_for_timeout(2000)
+                logger.info(f"Frames: {[f.url for f in page.frames]}")
+
+                selectors = [
+                    'input.mitid-core-user__user-id',
+                    'input[autocomplete="username"]',
+                    'input[type="text"]',
+                    'input[name="username"]',
+                ]
+
                 username_input = None
-                for _ in range(20):  # poll i op til 10s
-                    js_name = await page.evaluate("""() => {
+                for sel in selectors:
+                    try:
+                        el = page.locator(sel).first
+                        if await el.is_visible(timeout=1500):
+                            username_input = el
+                            logger.info(f"Found input (visible): {sel}")
+                            break
+                    except Exception:
+                        pass
+
+                # Fallback: use JS visibility (offsetParent) instead of Playwright is_visible
+                if not username_input:
+                    js_visible = await page.evaluate("""() => {
                         const inputs = document.querySelectorAll('input.mitid-core-user__user-id, input[name^="username"]');
-                        for (const i of inputs) { if (i.offsetParent !== null) return i.name || i.id; }
+                        for (const i of inputs) { if (i.offsetParent !== null) return i.name || i.id || 'found'; }
                         return null;
                     }""")
-                    if js_name:
-                        username_input = page.locator(f'input[name="{js_name}"]').first
-                        logger.info(f"Found username input via JS: {js_name}")
-                        break
-                    await page.wait_for_timeout(500)
+                    logger.info(f"JS visible input: {js_visible}")
+                    if js_visible:
+                        username_input = page.locator(f'input[name="{js_visible}"]').first
+                        logger.info(f"Using JS-found input: {js_visible}")
 
                 if not username_input:
                     await self._screenshot(page, "05_no_input_found")
-                    raise Exception("Could not find username input")
+                    all_inputs = await page.evaluate("""() => Array.from(document.querySelectorAll('input')).map(i => ({type:i.type,name:i.name,cls:i.className,visible:i.offsetParent!==null}))""")
+                    logger.info(f"All inputs: {all_inputs}")
+                    raise Exception(f"Could not find username input")
 
-                # MitID uses split input fields — click first field via JS then type
                 await page.evaluate("""() => {
-                    const inputs = document.querySelectorAll('input.mitid-core-user__user-id, input[name^="username"]');
-                    const first = Array.from(inputs).find(i => i.offsetParent !== null);
-                    if (first) { first.focus(); first.click(); }
+                    const input = document.querySelector('input.mitid-core-user__user-id, input[name="username0"]');
+                    if (input) { input.focus(); input.click(); }
                 }""")
-                await page.wait_for_timeout(200)
-                await page.keyboard.type(mitid_username, delay=120)
+                await page.wait_for_timeout(300)
+                await page.keyboard.type(mitid_username, delay=100)
                 await self._screenshot(page, "05_after_username")
                 await page.keyboard.press('Enter')
 
                 # Step 6: Wait for approval screen
-                await page.wait_for_selector(".mitid-core-section", state="visible", timeout=15000)
+                await page.wait_for_timeout(5000)
                 await self._screenshot(page, "06_approval_screen")
 
                 try:
@@ -240,8 +260,8 @@ class AulaPlaywright:
                         logger.info(f"URL after loginoption: {page.url}")
                         break
 
-                    await page.wait_for_timeout(2000)
-                    elapsed += 2
+                    await page.wait_for_timeout(3000)
+                    elapsed += 3
 
                 # Step 8: Final redirect and cookies
                 # After loginoption click, wait for navigation then check URL
@@ -260,17 +280,15 @@ class AulaPlaywright:
                 await self._screenshot(page, "09_after_approval")
                 logger.info(f"Final URL: {page.url}")
 
-                # Step 8: Collect cookies via wait_for_function
-                try:
-                    await page.wait_for_function(
-                        "() => document.cookie.includes('PHPSESSID') && document.cookie.includes('Csrfp-Token')",
-                        timeout=10000
-                    )
-                except PlaywrightTimeout:
-                    logger.warning("Cookie wait timed out — trying anyway")
-                cookies = await context.cookies()
-                phpsessid = next((c["value"] for c in cookies if c["name"] == "PHPSESSID"), None)
-                csrf_token = next((c["value"] for c in cookies if c["name"] == "Csrfp-Token"), None)
+                phpsessid, csrf_token = None, None
+                for attempt in range(5):
+                    cookies = await context.cookies()
+                    phpsessid = next((c["value"] for c in cookies if c["name"] == "PHPSESSID"), None)
+                    csrf_token = next((c["value"] for c in cookies if c["name"] == "Csrfp-Token"), None)
+                    if phpsessid and csrf_token:
+                        break
+                    logger.info(f"Cookie attempt {attempt+1}/5: {[c['name'] for c in cookies]}")
+                    await page.wait_for_timeout(2000)
 
                 if not phpsessid or not csrf_token:
                     raise ValueError(f"Missing cookies: {[c['name'] for c in await context.cookies()]}")

@@ -26,6 +26,9 @@ def get_settings():
         "google_client_secret":       "***" if os.getenv("GOOGLE_CLIENT_SECRET") else "",
         "google_oauth_connected":     bool(os.getenv("GOOGLE_OAUTH_REFRESH_TOKEN")),
         "google_default_calendar_id": os.getenv("GOOGLE_DEFAULT_CALENDAR_ID", "primary"),
+        "spotify_client_id":          "***" if os.getenv("SPOTIFY_CLIENT_ID") else "",
+        "spotify_client_secret":      "***" if os.getenv("SPOTIFY_CLIENT_SECRET") else "",
+        "spotify_connected":          bool(os.getenv("SPOTIFY_OAUTH_REFRESH_TOKEN")),
     }
     for suffix in [""] + [f"_{i}" for i in range(2, 11)]:
         u = os.getenv(f"MITID_USERNAME{suffix}", "")
@@ -85,6 +88,10 @@ async def save_settings(request: Request):
     if gcsc and gcsc != "***": set_env("GOOGLE_CLIENT_SECRET", gcsc)
     gcal = data.get("google_default_calendar_id", "").strip()
     if gcal: set_env("GOOGLE_DEFAULT_CALENDAR_ID", gcal)
+    scid = data.get("spotify_client_id", "").strip()
+    scsc = data.get("spotify_client_secret", "").strip()
+    if scid and scid != "***": set_env("SPOTIFY_CLIENT_ID", scid)
+    if scsc and scsc != "***": set_env("SPOTIFY_CLIENT_SECRET", scsc)
     if data.get("weather_lat"): set_env("WEATHER_LAT", data["weather_lat"])
     if data.get("weather_lon"): set_env("WEATHER_LON", data["weather_lon"])
     title = data.get("dashboard_title", "Hjem").strip() or "Hjem"

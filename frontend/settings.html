@@ -230,6 +230,24 @@
     </button>
   </div>
 
+  <!-- 6c. Spotify OAuth -->
+  <div class="card">
+    <h2>🎵 Spotify <span style="font-size:0.7rem;font-weight:400;color:#aaa">(OAuth2)</span></h2>
+    <p class="section-note">Tilslut din Spotify-konto for at vise hvad der spiller. Client ID og Secret fra <a href="https://developer.spotify.com/dashboard" target="_blank" style="color:var(--blue)">Spotify Developer Dashboard</a>.</p>
+    <div class="field">
+      <label>Client ID</label>
+      <input type="password" id="spotify_client_id" placeholder="ada638a7..." autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Client Secret</label>
+      <input type="password" id="spotify_client_secret" placeholder="..." autocomplete="off">
+    </div>
+    <div id="spotify-status" style="margin-top:12px;font-size:0.82rem;font-weight:600"></div>
+    <button class="btn-gen" id="spotify-connect-btn" onclick="connectSpotifyOAuth()" style="margin-top:10px;width:100%;padding:10px">
+      🔗 Tilslut Spotify-konto
+    </button>
+  </div>
+
   <!-- 7. ICS abonnement -->
   <div class="card">
     <h2>📅 Kalenderabonnement (ICS)</h2>
@@ -293,7 +311,15 @@
         } else {
           oauthStatus.innerHTML = '<span style="color:#aaa">Ikke tilsluttet</span>';
         }
-        const accList = document.getElementById('accounts-list');
+        // Spotify
+        document.getElementById('spotify_client_id').value     = s.spotify_client_id     || '';
+        document.getElementById('spotify_client_secret').value = s.spotify_client_secret || '';
+        const spotifyStatus = document.getElementById('spotify-status');
+        if (s.spotify_connected) {
+          spotifyStatus.innerHTML = '<span style="color:#2e7d32">✅ Spotify tilsluttet</span>';
+        } else {
+          spotifyStatus.innerHTML = '<span style="color:#aaa">Ikke tilsluttet</span>';
+        }
         accList.innerHTML = '';
         if (s.accounts && s.accounts.length) {
           s.accounts.forEach(a => addAccount(a.username, a.identity));
@@ -381,6 +407,8 @@
         google_client_id:           document.getElementById('google_client_id').value.trim(),
         google_client_secret:       document.getElementById('google_client_secret').value.trim(),
         google_default_calendar_id: document.getElementById('google_default_calendar_id').value.trim(),
+        spotify_client_id:           document.getElementById('spotify_client_id').value.trim(),
+        spotify_client_secret:       document.getElementById('spotify_client_secret').value.trim(),
         accounts,
         google_calendars,
         weather_lat: document.getElementById('weather_lat').value.trim(),
@@ -480,6 +508,31 @@
     const urlParams = new URLSearchParams(location.search);
     if (urlParams.get('oauth') === 'success') showToast('✅ Google-konto tilsluttet!');
     else if (urlParams.get('oauth') === 'error') showToast('❌ Google login fejlede: ' + (urlParams.get('reason')||'ukendt'), true);
+    if (urlParams.get('spotify') === 'success') showToast('✅ Spotify tilsluttet!');
+    else if (urlParams.get('spotify') === 'error') showToast('❌ Spotify login fejlede: ' + (urlParams.get('reason')||'ukendt'), true);
+
+    async function connectSpotifyOAuth() {
+      const cid = document.getElementById('spotify_client_id').value.trim();
+      const csc = document.getElementById('spotify_client_secret').value.trim();
+      if (!cid || !csc) { showToast('Udfyld Client ID og Client Secret først', true); return; }
+      const btn = document.getElementById('spotify-connect-btn');
+      btn.disabled = true; btn.textContent = 'Gemmer og omdirigerer...';
+      try {
+        await fetch('/api/settings', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ spotify_client_id: cid, spotify_client_secret: csc }),
+        });
+        const res = await fetch('/api/spotify-oauth/connect');
+        const data = await res.json();
+        if (data.auth_url) {
+          // Spotify kræver 127.0.0.1 — redirect dertil uanset nuværende host
+          const target = data.auth_url.replace(/http:\/\/[^/]+\//, 'http://127.0.0.1:8000/');
+          window.location.href = target;
+        }
+        else showToast('Fejl: ' + JSON.stringify(data), true);
+      } catch(e) { showToast('Fejl: ' + e.message, true); }
+      btn.disabled = false; btn.textContent = '🔗 Tilslut Spotify-konto';
+    }
 
     load();
   </script>
