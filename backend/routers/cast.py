@@ -1,33 +1,29 @@
 """
-routers/cast.py — Cast state endpoints + SSE stream
+routers/cast.py — Cast state endpoints + WebSocket stream
 """
 import asyncio
 import json
-from typing import AsyncGenerator
 
-from fastapi import APIRouter, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Request, HTTPException
 
-from backend.cast_service import get_state, add_listener, control_device
+from backend.cast_service import get_state, get_devices, add_listener, control_device, transfer_playback
 
 router        = APIRouter()
 router_auth   = APIRouter()  # control endpoints med API-nøgle krav
 
-# ── SSE event queue per forbundet klient ──────────────────────────────────────
-_sse_queues: list[asyncio.Queue] = []
+# ── WebSocket queue per forbundet klient ──────────────────────────────────────
+_ws_queues: list[asyncio.Queue] = []
 
 
 def _on_cast_state(device: str, state: dict):
-    """Kaldes fra cast_service når state ændrer sig — pusher til alle SSE-klienter."""
-    # Publicer også til MQTT
+    """Kaldes fra cast_service når state ændrer sig — pusher til alle WS-klienter."""
     try:
         from backend.mqtt_client import mqtt_client
         mqtt_client.publish(f"familieoverblik/cast/{device}/state", state, retain=True)
     except Exception:
         pass
-    # Push til SSE-klienter
     data = json.dumps(state)
-    for q in list(_sse_queues):
+    for q in list(_ws_queues):
         try:
             q.put_nowait(data)
         except asyncio.QueueFull:
@@ -38,37 +34,62 @@ def _on_cast_state(device: str, state: dict):
 add_listener(_on_cast_state)
 
 
+_MOCK_STATE = {
+    "Stuen": {
+        "device": "Stuen", "app": "Spotify", "state": "PLAYING",
+        "title": "Blinding Lights", "artist": "The Weeknd", "album": "After Hours",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ef017e899c0547766997d874",
+        "volume": 0.45,
+    },
+    "Køkken Hub": {
+        "device": "Køkken Hub", "app": "YouTube Music", "state": "PAUSED",
+        "title": "Bohemian Rhapsody", "artist": "Queen", "album": "A Night at the Opera",
+        "image": None, "volume": 0.6,
+    },
+}
+
+
 @router.get("/api/cast/state")
 def cast_state():
     """Returnerer seneste state for alle Cast-enheder."""
+    import os
+    if os.getenv("CAST_MOCK", "").lower() in ("1", "true", "yes"):
+        return _MOCK_STATE
     return get_state()
 
 
-@router.get("/api/cast/stream")
-async def cast_stream(request: Request):
-    """SSE stream — sender state-opdateringer i real-time."""
+@router.websocket("/ws/cast")
+async def cast_ws(websocket: WebSocket):
+    """WebSocket stream — sender state-opdateringer i real-time."""
+    await websocket.accept()
     queue: asyncio.Queue = asyncio.Queue(maxsize=50)
-    _sse_queues.append(queue)
+    _ws_queues.append(queue)
+    try:
+        for state in get_state().values():
+            await websocket.send_text(json.dumps(state))
+        while True:
+            data = await asyncio.wait_for(queue.get(), timeout=30)
+            await websocket.send_text(data)
+    except (WebSocketDisconnect, asyncio.TimeoutError, Exception):
+        pass
+    finally:
+        _ws_queues.remove(queue)
 
-    async def generate() -> AsyncGenerator[str, None]:
-        try:
-            # Send nuværende state straks
-            for device, state in get_state().items():
-                yield f"data: {json.dumps(state)}\n\n"
-            # Herefter stream ændringer
-            while True:
-                if await request.is_disconnected():
-                    break
-                try:
-                    data = await asyncio.wait_for(queue.get(), timeout=30)
-                    yield f"data: {data}\n\n"
-                except asyncio.TimeoutError:
-                    yield ": keepalive\n\n"
-        finally:
-            _sse_queues.remove(queue)
 
-    return StreamingResponse(generate(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+@router.get("/api/cast/devices")
+def cast_devices():
+    """Returnerer liste af alle kendte Cast-enheder."""
+    return {"devices": get_devices()}
+
+
+@router_auth.post("/api/cast/{device}/transfer")
+async def cast_transfer(device: str, request: Request):
+    data = await request.json()
+    target = data.get("target", "")
+    if not target:
+        raise HTTPException(400, "target required")
+    result = transfer_playback(device, target)
+    return result
 
 
 @router_auth.post("/api/cast/{device}/pause")

@@ -104,6 +104,77 @@ class _ConnectionListener:
 _chromecasts: dict[str, object] = {}  # name → pychromecast instance
 
 
+def get_devices() -> list[str]:
+    """Returnerer navne på alle kendte Cast-enheder."""
+    with _lock:
+        return list(_chromecasts.keys())
+
+
+def transfer_playback(source: str, target: str) -> dict:
+    """
+    Overfør afspilning fra source til target.
+    Returnerer {"ok": bool, "method": "spotify"|"media"|"error", "detail": str}
+    """
+    src_state = _state.get(source, {})
+    app = (src_state.get("app") or "").lower()
+
+    # ── Spotify: brug Transfer Playback API ───────────────────────────────────
+    if "spotify" in app:
+        try:
+            from backend.spotify_utils import get_spotify_access_token
+            import requests as req
+            token = get_spotify_access_token()
+            if not token:
+                return {"ok": False, "method": "spotify", "detail": "Spotify ikke forbundet"}
+
+            # Find Spotify device id der matcher target-navn
+            r = req.get("https://api.spotify.com/v1/me/player/devices",
+                        headers={"Authorization": f"Bearer {token}"}, timeout=8)
+            r.raise_for_status()
+            devices = r.json().get("devices", [])
+
+            # Fuzzy match på navn
+            target_lower = target.lower()
+            match = next(
+                (d for d in devices if target_lower in d["name"].lower() or d["name"].lower() in target_lower),
+                None
+            )
+            if not match:
+                names = [d["name"] for d in devices]
+                return {"ok": False, "method": "spotify", "detail": f"Ingen Spotify-enhed matcher '{target}'. Fandt: {names}"}
+
+            r2 = req.put("https://api.spotify.com/v1/me/player",
+                         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                         json={"device_ids": [match["id"]], "play": True}, timeout=8)
+            if r2.status_code in (200, 204):
+                return {"ok": True, "method": "spotify", "detail": match["name"]}
+            return {"ok": False, "method": "spotify", "detail": f"Spotify API fejl {r2.status_code}"}
+        except Exception as e:
+            return {"ok": False, "method": "spotify", "detail": str(e)}
+
+    # ── Anden media: stop source, start på target ─────────────────────────────
+    src_cc = _chromecasts.get(source)
+    tgt_cc = _chromecasts.get(target)
+    if not src_cc or not tgt_cc:
+        return {"ok": False, "method": "media", "detail": "Enhed ikke fundet"}
+    try:
+        mc = src_cc.media_controller
+        status = mc.status
+        if not status or not status.content_id:
+            return {"ok": False, "method": "media", "detail": "Ingen aktiv media URL på kildeenhed"}
+        url          = status.content_id
+        content_type = status.content_type or "video/mp4"
+        position     = status.current_time or 0
+
+        src_cc.media_controller.stop()
+
+        tgt_cc.wait(timeout=5)
+        tgt_cc.media_controller.play_media(url, content_type, current_time=position)
+        return {"ok": True, "method": "media", "detail": target}
+    except Exception as e:
+        return {"ok": False, "method": "media", "detail": str(e)}
+
+
 def get_state() -> dict:
     """Returnerer seneste state for alle opdagede enheder."""
     with _lock:
@@ -174,11 +245,7 @@ def _run(known_hosts: list[str] | None):
                 except Exception:
                     pass
                 _notify(name, initial)
-                # Opdater media status hvis enheden allerede afspiller
-                try:
-                    chromecast.media_controller.update_status()
-                except Exception:
-                    pass
+
             except Exception as e:
                 log.warning("Cast: kunne ikke forbinde til %s: %s", name, e)
                 _notify(name, _empty_state(name))
