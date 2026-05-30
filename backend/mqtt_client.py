@@ -154,10 +154,9 @@ class MqttClient:
             self._connected = False
             if rc == 0:
                 pass  # clean disconnect
-            elif rc in _NO_RETRY_RC:
-                log.warning("MQTT: auth fejl ved disconnect rc=%s — deaktiverer", rc)
-                self._disabled = True
             else:
+                # RC != 0 er netværksfejl/unclean disconnect — aldrig permanent auth-fejl
+                # Auth-fejl håndteres kun i _on_connect (rc=4/5)
                 log.info("MQTT: afbrudt (rc=%s) — watchdog genstarter...", rc)
         except Exception as e:
             log.debug("MQTT _on_disconnect fejl: %s", e)

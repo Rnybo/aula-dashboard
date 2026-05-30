@@ -388,50 +388,55 @@ def _connect_cast(chromecast):
 
 
 def _run(known_hosts: list[str] | None):
-    browser = None
-    try:
-        import zeroconf as zc_module
+    """Cast service hovedløkke — genstarter automatisk ved fejl."""
+    while not _stop_event.is_set():
+        browser = None
+        try:
+            import zeroconf as zc_module
 
-        def _on_cast(chromecast):
-            name = chromecast.name
-            log.info("Cast: fandt %s (%s)", name, chromecast.uri)
-            _chromecasts[name] = chromecast
-            chromecast.register_status_listener(_StatusListener(name, chromecast))
-            chromecast.media_controller.register_status_listener(_MediaListener(name))
-            chromecast.register_connection_listener(_ConnectionListener(name, chromecast))
-            t = threading.Thread(target=_connect_cast, args=(chromecast,),
-                                 daemon=True, name=f"cast-connect-{name}")
-            t.start()
+            def _on_cast(chromecast):
+                name = chromecast.name
+                log.info("Cast: fandt %s (%s)", name, chromecast.uri)
+                _chromecasts[name] = chromecast
+                chromecast.register_status_listener(_StatusListener(name, chromecast))
+                chromecast.media_controller.register_status_listener(_MediaListener(name))
+                chromecast.register_connection_listener(_ConnectionListener(name, chromecast))
+                t = threading.Thread(target=_connect_cast, args=(chromecast,),
+                                     daemon=True, name=f"cast-connect-{name}")
+                t.start()
 
-        zeroconf_instance = zc_module.Zeroconf()
+            zeroconf_instance = zc_module.Zeroconf()
 
-        if known_hosts:
-            log.info("Cast: forbinder direkte til %s", known_hosts)
-            chromecasts, browser = pychromecast.get_chromecasts(
-                known_hosts=known_hosts,
-                zeroconf_instance=zeroconf_instance,
-            )
-            for cc in chromecasts:
-                _on_cast(cc)
-        else:
-            log.info("Cast: starter mDNS discovery med callback...")
-            browser = pychromecast.get_chromecasts(
-                blocking=False,
-                callback=_on_cast,
-                zeroconf_instance=zeroconf_instance,
-            )
+            if known_hosts:
+                log.info("Cast: forbinder direkte til %s", known_hosts)
+                chromecasts, browser = pychromecast.get_chromecasts(
+                    known_hosts=known_hosts,
+                    zeroconf_instance=zeroconf_instance,
+                )
+                for cc in chromecasts:
+                    _on_cast(cc)
+            else:
+                log.info("Cast: starter mDNS discovery med callback...")
+                browser = pychromecast.get_chromecasts(
+                    blocking=False,
+                    callback=_on_cast,
+                    zeroconf_instance=zeroconf_instance,
+                )
 
-        while not _stop_event.is_set():
-            time.sleep(1)
+            while not _stop_event.is_set():
+                time.sleep(1)
 
-    except Exception as e:
-        log.error("Cast service fejl: %s", e, exc_info=True)
-    finally:
-        if browser:
-            try:
-                browser.stop_discovery()
-            except Exception:
-                pass
+        except Exception as e:
+            log.error("Cast service fejl: %s — genstarter om 30 sek", e, exc_info=True)
+        finally:
+            if browser:
+                try:
+                    browser.stop_discovery()
+                except Exception:
+                    pass
+
+        if not _stop_event.is_set():
+            time.sleep(30)
 
 
 # ── Standalone test ────────────────────────────────────────────────────────────
