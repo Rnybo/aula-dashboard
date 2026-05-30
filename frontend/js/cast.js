@@ -181,6 +181,8 @@ function castTogglePanel() {
   castPanelOpen ? castClosePanel() : castOpenPanel();
 }
 
+const CAST_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><circle cx="2" cy="20" r="1" fill="currentColor"/></svg>`;
+
 function castRenderPanel() {
   const panel = document.getElementById('cast-panel');
   if (!panel) return;
@@ -188,8 +190,9 @@ function castRenderPanel() {
   if (playing.length === 0) { castClosePanel(); return; }
 
   panel.innerHTML = playing.map(s => {
-    const isPaused   = s.state === 'PAUSED';
+    const isPaused    = s.state === 'PAUSED';
     const isBuffering = s.state === 'BUFFERING';
+    const isSpotifyApp = (s.app || '').toLowerCase().includes('spotify');
     const dotClass   = isPaused ? 'paused' : isBuffering ? 'buffering' : '';
     const statusText = isPaused ? 'Sat på pause' : isBuffering ? 'Indlæser…' : 'Afspiller';
     const artHtml    = s.image
@@ -230,8 +233,73 @@ function castRenderPanel() {
         `}
       </div>
       ${castProgressHtml(s)}
+      ${!isSpotifyApp ? `
+      <div style="padding:0 14px 6px">
+        <button class="cast-transfer-btn" onclick="castShowTransferMenu('${s.device}',this)"
+          style="width:100%;padding:6px;border:0.5px solid var(--border);border-radius:6px;background:none;cursor:pointer;font-size:0.8rem;color:#555;display:flex;align-items:center;justify-content:center;gap:6px">
+          ${CAST_ICON_SVG} Afspil på anden enhed
+        </button>
+      </div>` : ''}
     </div>`;
   }).join('');
+}
+
+async function castShowTransferMenu(sourceDevice, anchorEl) {
+  let allDevices = [];
+  try {
+    const r = await apiFetch('/api/cast/devices');
+    allDevices = (await r.json()).devices || [];
+  } catch(e) {}
+
+  document.querySelectorAll('.cast-transfer-menu').forEach(el => el.remove());
+  const others = allDevices.filter(d => d !== sourceDevice);
+  if (others.length === 0) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'cast-transfer-menu';
+  menu.innerHTML = `<div style="padding:6px 12px 4px;font-size:0.68rem;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.05em">Afspil på</div>` +
+    others.map(d => {
+      const s = castState[d];
+      const isActive = s && (s.state === 'PLAYING' || s.state === 'BUFFERING' || s.state === 'PAUSED');
+      const right = isActive
+        ? `<span style="font-size:0.72rem;color:#ff9800;font-weight:600">Afspiller ✕</span>`
+        : CAST_ICON_SVG;
+      return `<div class="cast-transfer-item" data-device="${d}" data-active="${isActive}">
+        <span style="margin-right:6px">${castAppIcon(s?.app)}</span>
+        <span style="flex:1">${d}</span>${right}
+      </div>`;
+    }).join('');
+
+  const rect = anchorEl.getBoundingClientRect();
+  menu.style.cssText = `position:fixed;bottom:${window.innerHeight - rect.top + 4}px;right:${window.innerWidth - rect.right}px;
+    background:#fff;border:0.5px solid var(--border);border-radius:8px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:2000;min-width:200px;overflow:hidden`;
+  document.body.appendChild(menu);
+
+  menu.querySelectorAll('.cast-transfer-item').forEach(item => {
+    item.addEventListener('click', async () => {
+      menu.remove();
+      const target   = item.dataset.device;
+      const isActive = item.dataset.active === 'true';
+      try {
+        if (isActive) {
+          await apiFetch(`/api/cast/${encodeURIComponent(target)}/stop`, { method: 'POST' });
+        } else {
+          const res = await apiFetch(`/api/cast/${encodeURIComponent(sourceDevice)}/transfer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target })
+          });
+          const data = await res.json();
+          if (!data.ok) setTimeout(() => alert('⚠️ ' + (data.detail || 'Transfer fejlede')), 100);
+        }
+      } catch(e) { console.warn('Cast transfer fejl:', e); }
+    });
+  });
+
+  setTimeout(() => document.addEventListener('click', function close() {
+    menu.remove(); document.removeEventListener('click', close);
+  }), 50);
 }
 
 async function castControl(device, action) {

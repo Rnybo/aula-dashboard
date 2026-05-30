@@ -298,88 +298,42 @@ SPOTIFY_CAST_APP_ID = "CC32E753"
 
 def transfer_playback(source: str, target: str, spotify_device_id: str | None = None) -> dict:
     """
-    Overfør Spotify-afspilning til target Cast-enhed.
-    1. Start Spotify-appen på target via Cast (waker enheden op)
-    2. Vent på at Spotify registrerer enheden
-    3. Transfer via Spotify Connect API
+    Overfør afspilning fra source til target.
+    Kun for direkte URL-streams (DR, radio osv.) — ikke Spotify.
+    Stopper source og starter play_media på target med samme URL og position.
     """
     src_state = _state.get(source, {})
     app = (src_state.get("app") or "").lower()
 
-    if "spotify" not in app:
+    if "spotify" in app:
         return {"ok": False, "method": "unsupported",
-                "detail": f"Transfer understøttes kun for Spotify (app='{src_state.get('app')}')"}
+                "detail": "Brug Spotify-appen til at skifte enhed for Spotify-afspilning."}
+
+    src_cc = _chromecasts.get(source)
+    tgt_cc = _chromecasts.get(target)
+    if not src_cc:
+        return {"ok": False, "detail": f"Kildeenhed '{source}' ikke fundet"}
+    if not tgt_cc:
+        return {"ok": False, "detail": f"Målenhed '{target}' ikke fundet"}
 
     try:
-        from backend.spotify_utils import get_spotify_access_token
-        import requests as req
-        token = get_spotify_access_token()
-        if not token:
-            return {"ok": False, "method": "spotify", "detail": "Spotify ikke forbundet"}
+        mc = src_cc.media_controller
+        ms = mc.status
+        if not ms or not ms.content_id:
+            return {"ok": False, "detail": "Ingen aktiv stream-URL på kildeenheden"}
 
-        # Brug direkte device ID hvis sendt
-        if spotify_device_id:
-            r2 = req.put("https://api.spotify.com/v1/me/player",
-                         headers={"Authorization": f"Bearer {token}",
-                                   "Content-Type": "application/json"},
-                         json={"device_ids": [spotify_device_id], "play": True}, timeout=8)
-            log.info("Spotify transfer (direct id) response: %s", r2.status_code)
-            if r2.status_code in (200, 204):
-                return {"ok": True, "method": "spotify"}
-            return {"ok": False, "method": "spotify",
-                    "detail": f"Spotify API {r2.status_code}: {r2.text[:200]}"}
+        url          = ms.content_id
+        content_type = ms.content_type or "audio/mp4"
+        position     = ms.current_time or 0
 
-        # Ingen direkte ID — wake target-enheden via Cast og poll Spotify
-        tgt_cc = _chromecasts.get(target)
-        if tgt_cc:
-            try:
-                log.info("Spotify transfer: starter Spotify-app på '%s' via Cast", target)
-                tgt_cc.start_app(SPOTIFY_CAST_APP_ID)
-            except Exception as e:
-                log.warning("Cast start_app fejl: %s", e)
-        else:
-            log.warning("Spotify transfer: Cast-enhed '%s' ikke fundet", target)
-
-        # Poll Spotify i op til 15 sek — vent KUN på præcis target-enheden
-        device_id = None
-        tl = target.lower()
-        for attempt in range(8):
-            time.sleep(2)
-            try:
-                r = req.get("https://api.spotify.com/v1/me/player/devices",
-                            headers={"Authorization": f"Bearer {token}"}, timeout=8)
-                r.raise_for_status()
-                devices = r.json().get("devices", [])
-                log.info("Spotify poll %d: %s", attempt + 1, [d["name"] for d in devices])
-                match = next((d for d in devices
-                              if tl in d["name"].lower() or d["name"].lower() in tl), None)
-                if match:
-                    device_id = match["id"]
-                    log.info("Spotify transfer: fandt '%s'", match["name"])
-                    break
-            except Exception as e:
-                log.warning("Spotify poll fejl: %s", e)
-
-        if not device_id:
-            return {
-                "ok": False,
-                "method": "spotify",
-                "detail": f"'{target}' er ikke logget ind på Spotify. Åbn Spotify-appen på enheden manuelt én gang — den vises derefter i listen næste gang."
-            }
-
-        r2 = req.put("https://api.spotify.com/v1/me/player",
-                     headers={"Authorization": f"Bearer {token}",
-                               "Content-Type": "application/json"},
-                     json={"device_ids": [device_id], "play": True}, timeout=8)
-        log.info("Spotify transfer response: %s", r2.status_code)
-        if r2.status_code in (200, 204):
-            return {"ok": True, "method": "spotify"}
-        return {"ok": False, "method": "spotify",
-                "detail": f"Spotify API {r2.status_code}: {r2.text[:200]}"}
-
+        log.info("Transfer: %s → %s url=%s pos=%.1f", source, target, url[:60], position)
+        src_cc.media_controller.stop()
+        tgt_cc.wait(timeout=5)
+        tgt_cc.media_controller.play_media(url, content_type, current_time=position)
+        return {"ok": True, "method": "media", "detail": target}
     except Exception as e:
-        log.exception("Transfer fejl")
-        return {"ok": False, "method": "spotify", "detail": str(e)}
+        log.warning("Transfer fejl: %s", e)
+        return {"ok": False, "detail": str(e)}
 
 
 _stop_event = threading.Event()
