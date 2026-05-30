@@ -87,45 +87,61 @@ function castTogglePanel() {
   castPanelOpen ? castClosePanel() : castOpenPanel();
 }
 
+const CAST_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/>
+  <circle cx="2" cy="20" r="1" fill="currentColor"/>
+</svg>`;
+
 function castRenderPanel() {
   const panel = document.getElementById('cast-panel');
   if (!panel) return;
   const playing = castActivePlaying();
   if (playing.length === 0) { castClosePanel(); return; }
 
-  panel.innerHTML = playing.map(s => `
+  panel.innerHTML = playing.map(s => {
+    const isPaused   = s.state === 'PAUSED';
+    const isBuffering = s.state === 'BUFFERING';
+    const dotClass   = isPaused ? 'paused' : isBuffering ? 'buffering' : '';
+    const statusText = isPaused ? 'Sat på pause' : isBuffering ? 'Indlæser…' : 'Afspiller';
+    const artHtml    = s.image
+      ? `<img class="cast-album-art" src="${s.image}" onerror="this.parentElement.innerHTML='<div class=cast-art-placeholder>${castAppIcon(s.app)}</div>'">`
+      : `<div class="cast-art-placeholder">${castAppIcon(s.app)}</div>`;
+    const vol = Math.round((s.volume || 0) * 100);
+    return `
     <div class="cast-device">
-      <div class="cast-device-header">
-        <span class="cast-app-icon">${castAppIcon(s.app)}</span>
-        <span class="cast-device-name">${s.device}</span>
-        <span class="cast-status ${s.state === 'PAUSED' ? 'paused' : ''}">${s.state === 'PAUSED' ? 'Sat på pause' : s.state === 'BUFFERING' ? 'Indlæser...' : 'Afspiller'}</span>
-      </div>
-      ${s.image ? `<img class="cast-album-art" src="${s.image}" onerror="this.style.display='none'">` : ''}
+      ${artHtml}
       <div class="cast-track-info">
         <div class="cast-title">${s.title || '(ukendt titel)'}</div>
         ${s.artist ? `<div class="cast-artist">${s.artist}</div>` : ''}
         ${s.album  ? `<div class="cast-album">${s.album}</div>`   : ''}
       </div>
-      ${s.volume !== null ? `<div class="cast-volume">🔊 ${Math.round(s.volume * 100)}%</div>` : ''}
+      <div class="cast-device-row">
+        <div class="cast-status-dot ${dotClass}" title="${statusText}"></div>
+        <span class="cast-device-name">${s.device}</span>
+        <span style="font-size:0.72rem;color:#aaa">${statusText}</span>
+      </div>
       <div class="cast-controls">
         <button onclick="castControl('${s.device}','previous')" title="Forrige">⏮</button>
-        <button onclick="castControl('${s.device}','seek_back')" title="10 sek tilbage">⏪</button>
-        <button onclick="castControl('${s.device}','${s.state === 'PAUSED' ? 'play' : 'pause'}')" class="cast-playpause">
-          ${s.state === 'PAUSED' ? '▶' : '⏸'}
+        <button onclick="castControl('${s.device}','seek_back')" title="−10s" style="font-size:0.75rem">−10s</button>
+        <button onclick="castControl('${s.device}','${isPaused ? 'play' : 'pause'}')" class="cast-playpause">
+          ${isPaused ? '▶' : '⏸'}
         </button>
-        <button onclick="castControl('${s.device}','seek_fwd')" title="10 sek frem">⏩</button>
+        <button onclick="castControl('${s.device}','seek_fwd')" title="+10s" style="font-size:0.75rem">+10s</button>
         <button onclick="castControl('${s.device}','next')" title="Næste">⏭</button>
-        <button onclick="castControl('${s.device}','stop')" title="Stop" class="cast-stop">⏹</button>
       </div>
-      <button class="cast-transfer-btn" onclick="castShowTransferMenu('${s.device}', this)">📡 Afspil på...</button>
       <div class="cast-vol-row">
         <span>🔇</span>
-        <input type="range" min="0" max="100" value="${Math.round((s.volume||0)*100)}"
-          oninput="castSetVolume('${s.device}', this.value/100)">
-        <span>🔊</span>
+        <input type="range" min="0" max="100" value="${vol}" step="1"
+          oninput="castSetVolume('${s.device}',this.value/100)">
+        <span>${vol}%</span>
       </div>
-    </div>
-  `).join('');
+      <div style="padding:0 14px 2px">
+        <button class="cast-transfer-btn" onclick="castShowTransferMenu('${s.device}',this)">
+          ${CAST_ICON_SVG} Afspil på en anden enhed
+        </button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function castShowTransferMenu(sourceDevice, anchorEl) {
