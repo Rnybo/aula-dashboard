@@ -337,38 +337,35 @@ def transfer_playback(source: str, target: str, spotify_device_id: str | None = 
                 tgt_cc.start_app(SPOTIFY_CAST_APP_ID)
             except Exception as e:
                 log.warning("Cast start_app fejl: %s", e)
+        else:
+            log.warning("Spotify transfer: Cast-enhed '%s' ikke fundet", target)
 
-        # Poll Spotify i op til 10 sek for at target dukker op
+        # Poll Spotify i op til 15 sek — vent KUN på præcis target-enheden
         device_id = None
-        for attempt in range(5):
+        tl = target.lower()
+        for attempt in range(8):
             time.sleep(2)
-            r = req.get("https://api.spotify.com/v1/me/player/devices",
-                        headers={"Authorization": f"Bearer {token}"}, timeout=8)
-            r.raise_for_status()
-            devices = r.json().get("devices", [])
-            log.info("Spotify poll %d: devices=%s", attempt + 1,
-                     [(d["name"], d["id"][:8]) for d in devices])
-
-            # Match target-navn
-            tl = target.lower()
-            match = next((d for d in devices
-                          if tl in d["name"].lower() or d["name"].lower() in tl), None)
-            if match:
-                device_id = match["id"]
-                log.info("Spotify transfer: fandt '%s' efter %d forsøg", match["name"], attempt + 1)
-                break
+            try:
+                r = req.get("https://api.spotify.com/v1/me/player/devices",
+                            headers={"Authorization": f"Bearer {token}"}, timeout=8)
+                r.raise_for_status()
+                devices = r.json().get("devices", [])
+                log.info("Spotify poll %d: %s", attempt + 1, [d["name"] for d in devices])
+                match = next((d for d in devices
+                              if tl in d["name"].lower() or d["name"].lower() in tl), None)
+                if match:
+                    device_id = match["id"]
+                    log.info("Spotify transfer: fandt '%s'", match["name"])
+                    break
+            except Exception as e:
+                log.warning("Spotify poll fejl: %s", e)
 
         if not device_id:
-            # Fallback: brug første ikke-aktive device
-            r = req.get("https://api.spotify.com/v1/me/player/devices",
-                        headers={"Authorization": f"Bearer {token}"}, timeout=8)
-            devices = r.json().get("devices", [])
-            match = next((d for d in devices if not d.get("is_active")), None) or (devices[0] if devices else None)
-            if not match:
-                return {"ok": False, "method": "spotify",
-                        "detail": f"Target '{target}' ikke fundet i Spotify. Tilgængelige: {[d['name'] for d in devices]}"}
-            device_id = match["id"]
-            log.info("Spotify transfer fallback: bruger '%s'", match["name"])
+            return {
+                "ok": False,
+                "method": "spotify",
+                "detail": f"'{target}' er ikke logget ind på Spotify. Åbn Spotify-appen på enheden manuelt én gang — den vises derefter i listen næste gang."
+            }
 
         r2 = req.put("https://api.spotify.com/v1/me/player",
                      headers={"Authorization": f"Bearer {token}",

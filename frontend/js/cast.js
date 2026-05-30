@@ -328,11 +328,15 @@ async function castShowTransferMenu(sourceDevice, anchorEl) {
           await apiFetch(`/api/cast/${encodeURIComponent(item.dataset.device)}/stop`, { method: 'POST' });
         } else {
           // Inaktiv Cast-enhed — overfør via Spotify Connect (waker enheden op)
-          await apiFetch(`/api/cast/${encodeURIComponent(sourceDevice)}/transfer`, {
+          const res = await apiFetch(`/api/cast/${encodeURIComponent(sourceDevice)}/transfer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ target: item.dataset.device })
           });
+          const data = await res.json();
+          if (!data.ok) {
+            setTimeout(() => alert('⚠️ ' + (data.detail || 'Transfer fejlede')), 100);
+          }
         }
       } catch(e) { console.warn('Cast transfer/stop fejl:', e); }
     });
