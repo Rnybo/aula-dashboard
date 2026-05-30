@@ -188,27 +188,61 @@ def add_listener(cb: Callable):
 
 
 def control_device(device: str, action: str, **kwargs) -> bool:
-    """Styr en Cast-enhed: play, pause, stop, volume."""
+    """Styr en Cast-enhed: play, pause, stop, next, previous, seek, volume."""
     cc = _chromecasts.get(device)
     if not cc:
         log.warning("control_device: enhed '%s' ikke fundet", device)
         return False
     try:
         mc = cc.media_controller
-        if action == "play":      mc.play()
-        elif action == "pause":   mc.pause()
-        elif action == "stop":    mc.stop()
-        elif action == "next":    mc.queue_next()
-        elif action == "previous":mc.queue_prev()
+        if action == "play":
+            mc.play()
+        elif action == "pause":
+            mc.pause()
+        elif action == "stop":
+            mc.stop()
+        elif action == "next":
+            mc.queue_next()
+        elif action == "previous":
+            mc.queue_prev()
         elif action == "seek":
             current = mc.status.current_time if mc.status else 0
             mc.seek(max(0, current + float(kwargs.get("delta", 0))))
         elif action == "volume":
             cc.set_volume(float(kwargs.get("level", 0.5)))
+
+        # Push optimistisk state-opdatering til frontend med det samme
+        # pychromecast sender ikke altid et event tilbage ved kontrol-kald
+        _push_optimistic(device, action, cc, **kwargs)
         return True
     except Exception as e:
         log.warning("control_device fejl: %s", e)
         return False
+
+
+def _push_optimistic(device: str, action: str, cc, **kwargs):
+    """Push øjeblikkelig state-opdatering baseret på kontrol-handling."""
+    with _lock:
+        current = dict(_state.get(device, _empty_state(device)))
+
+    if action == "pause":
+        current["state"] = "PAUSED"
+    elif action == "play":
+        current["state"] = "PLAYING"
+    elif action == "stop":
+        current["state"] = "IDLE"
+        current["title"] = None
+        current["artist"] = None
+        current["album"] = None
+        current["image"] = None
+    elif action == "volume":
+        current["volume"] = round(float(kwargs.get("level", 0.5)), 2)
+    elif action in ("next", "previous"):
+        current["state"] = "BUFFERING"
+        current["title"] = None
+        current["artist"] = None
+
+    _notify(device, current)
 
 
 _stop_event = threading.Event()
