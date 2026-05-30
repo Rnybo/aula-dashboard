@@ -44,7 +44,12 @@ function castAppIcon(app) {
 }
 
 function castActivePlaying() {
-  return Object.values(castState).filter(s => s.state === 'PLAYING' || s.state === 'BUFFERING' || s.state === 'PAUSED');
+  return Object.values(castState).filter(s => {
+    if (!s.state || s.state === 'IDLE' || s.state === 'UNKNOWN') return false;
+    // Apps med upålidelig media info vises stadig som PLAYING — samme som HA
+    if (s.unreliable_info && s.state === 'PLAYING') return true;
+    return s.state === 'PLAYING' || s.state === 'BUFFERING' || s.state === 'PAUSED';
+  });
 }
 
 function castRenderHomeWidget() {

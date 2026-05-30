@@ -57,11 +57,14 @@ def _notify(device: str, state: dict):
             log.warning("Cast listener fejl: %s", e)
 
 
+# Apps der ikke rapporterer media info pålideligt — samme liste som HA
+_UNRELIABLE_MEDIA_INFO_APPS = {"Netflix"}
+
+
 class _MediaListener:
     """
     Lytter på media status events fra pychromecast.
     Bruger MediaStatus properties direkte — samme som HA's implementering.
-    new_media_status() kaldes automatisk af pychromecast via channel_connected → update_status().
     """
     def __init__(self, name: str):
         self.name = name
@@ -70,11 +73,14 @@ class _MediaListener:
         if not status:
             return
 
-        # Brug MediaStatus properties — ikke rå dict-lookup (kan returnere None/tal)
-        # Ref: pychromecast/controllers/media.py MediaStatus properties
+        # Log IDLE+ERROR — samme som HA's new_media_status fejlhåndtering
+        if status.player_is_idle and status.idle_reason == "ERROR":
+            log.warning("Cast %s: media fejl — idle_reason=ERROR content_id=%s",
+                        self.name, status.content_id)
+
         image = None
         if status.images:
-            image = status.images[0].url  # MediaImage.url property
+            image = status.images[0].url
 
         with _lock:
             prev = _state.get(self.name) or {}
@@ -83,15 +89,23 @@ class _MediaListener:
             current_muted  = prev.get("volume_muted", False)
             current_fixed  = prev.get("volume_control_fixed", False)
 
+        # Map UNKNOWN → IDLE — HA filtrerer UNKNOWN fra i state property
+        player_state = status.player_state
+        if player_state == "UNKNOWN":
+            player_state = "IDLE"
+
+        # Marker apps med upålidelig media info — samme som HA's APP_IDS_UNRELIABLE_MEDIA_INFO
+        unreliable = any(app in (current_app or "") for app in _UNRELIABLE_MEDIA_INFO_APPS)
+
         state = {
             "device":              self.name,
             "app":                 current_app,
-            "state":               status.player_state,
+            "state":               player_state,
             "title":               status.title,
             "artist":              status.artist,
             "album":               status.album_name,
             "image":               image,
-            "volume":              current_volume,   # bevar volumen fra _StatusListener
+            "volume":              current_volume,
             "volume_muted":        current_muted,
             "volume_control_fixed": current_fixed,
             "current_time":        status.adjusted_current_time,
@@ -101,8 +115,9 @@ class _MediaListener:
             "supports_seek":       status.supports_seek,
             "supports_next":       status.supports_queue_next,
             "supports_previous":   status.supports_queue_prev,
+            "unreliable_info":     unreliable,
         }
-        log.info("Cast %s: %s — %s af %s", self.name, status.player_state, status.title, status.artist)
+        log.info("Cast %s: %s — %s af %s", self.name, player_state, status.title, status.artist)
         _notify(self.name, state)
 
     def load_media_failed(self, queue_item_id: int, error_code: int):
@@ -126,9 +141,9 @@ class _StatusListener:
 
         current["volume"]       = round(status.volume_level, 2) if status.volume_level is not None else None
         current["volume_muted"] = bool(status.volume_muted)
-        # VOLUME_CONTROL_TYPE_FIXED = "attenuation" — Nest Hub Display har fast volumen
-        # Ref: pychromecast/controllers/receiver.py VOLUME_CONTROL_TYPE_FIXED
-        current["volume_control_fixed"] = (getattr(status, "volume_control_type", "") == "attenuation")
+        # VOLUME_CONTROL_TYPE_FIXED = "fixed" — Ref: pychromecast/controllers/receiver.py
+        # "attenuation" er VOLUME_CONTROL_TYPE_ATTENUATION (ikke fixed)
+        current["volume_control_fixed"] = (getattr(status, "volume_control_type", "") == "fixed")
         try:
             app_name = self._cc.app_display_name
         except Exception:
@@ -142,17 +157,30 @@ class _StatusListener:
 class _ConnectionListener:
     """
     Lytter på forbindelsesstatus.
-    CONNECTED: intet — media status ankommer automatisk via channel_connected → update_status()
-    DISCONNECTED/LOST: nulstil state
+    Samme adfærd som HA: opdater kun state ved faktisk ændring.
+    CONNECTED: log + re-notify eksisterende state så frontend ved enheden er tilbage.
+    DISCONNECTED/LOST: nulstil state.
     """
     def __init__(self, name: str, cc):
         self.name = name
         self.cc = cc
+        self._was_connected = False
 
     def new_connection_status(self, status):
-        log.info("Cast %s forbindelsesstatus: %s", self.name, status.status)
-        if status.status in ("DISCONNECTED", "LOST"):
-            _notify(self.name, _empty_state(self.name))
+        conn = status.status
+        log.info("Cast %s forbindelsesstatus: %s", self.name, conn)
+
+        if conn in ("DISCONNECTED", "LOST"):
+            if self._was_connected:
+                self._was_connected = False
+                _notify(self.name, _empty_state(self.name))
+        elif conn == "CONNECTED":
+            if not self._was_connected:
+                self._was_connected = True
+                # Re-notify eksisterende state — frontend ved nu at enheden er tilgængelig
+                with _lock:
+                    current = dict(_state.get(self.name, _empty_state(self.name)))
+                _notify(self.name, current)
 
 
 # ── Offentlig API ──────────────────────────────────────────────────────────────
@@ -361,39 +389,25 @@ def start(known_hosts: list[str] | None = None):
 
 def _connect_cast(chromecast):
     """
-    Forbind til enhed og registrer listeners.
-    pychromecast kalder automatisk channel_connected → update_status() → new_media_status()
-    så vi behøver ikke kalde update_status() manuelt (det afbryder afspilning).
-    Vi venter kun på at status-objektet er klar og sender en initial state.
+    Forbind til enhed og sæt initial state.
+    pychromecast kalder automatisk channel_connected → update_status() → new_media_status().
+    Vi sætter kun en initial IDLE state med volumen fra cast_status.
     """
     name = chromecast.name
     try:
         chromecast.wait(timeout=10)
-
-        # Læs initial cast status (volumen, app navn) — ingen netværkskald
         initial = _empty_state(name)
         try:
             s = chromecast.status
             if s:
                 initial["volume"] = round(s.volume_level, 2) if s.volume_level is not None else None
-                initial["app"]    = s.display_name or None
+                initial["app"]    = chromecast.app_display_name or None
+                initial["volume_muted"] = bool(s.volume_muted)
+                initial["volume_control_fixed"] = (getattr(s, "volume_control_type", "") == "fixed")
         except Exception:
             pass
         _notify(name, initial)
-
-        # pychromecast sender new_media_status automatisk via channel_connected.
-        # Vi venter op til 5s og læser cached status — UDEN at kalde update_status()
-        deadline = time.time() + 5
-        while time.time() < deadline:
-            try:
-                ms = chromecast.media_controller.status
-                if ms and ms.player_state not in ("UNKNOWN", "IDLE", None):
-                    log.info("Cast %s: opstartsstate=%s title=%s", name, ms.player_state, ms.title)
-                    break
-            except Exception:
-                pass
-            time.sleep(0.5)
-
+        # new_media_status ankommer automatisk via channel_connected — ingen polling nødvendig
     except Exception as e:
         log.warning("Cast: kunne ikke forbinde til %s: %s", name, e)
         _notify(name, _empty_state(name))
