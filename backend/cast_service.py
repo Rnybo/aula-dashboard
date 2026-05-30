@@ -29,18 +29,20 @@ except ImportError:
 
 def _empty_state(name: str) -> dict:
     return {
-        "device":             name,
-        "app":                None,
-        "state":              "IDLE",
-        "title":              None,
-        "artist":             None,
-        "album":              None,
-        "image":              None,
-        "volume":             None,
-        "supports_pause":     True,
-        "supports_seek":      False,
-        "supports_next":      False,
-        "supports_previous":  False,
+        "device":              name,
+        "app":                 None,
+        "state":               "IDLE",
+        "title":               None,
+        "artist":              None,
+        "album":               None,
+        "image":               None,
+        "volume":              None,
+        "volume_muted":        False,
+        "volume_control_fixed": False,
+        "supports_pause":      True,
+        "supports_seek":       False,
+        "supports_next":       False,
+        "supports_previous":   False,
     }
 
 
@@ -75,26 +77,30 @@ class _MediaListener:
             image = status.images[0].url  # MediaImage.url property
 
         with _lock:
-            current_app = (_state.get(self.name) or {}).get("app")
+            prev = _state.get(self.name) or {}
+            current_app    = prev.get("app")
+            current_volume = prev.get("volume")
+            current_muted  = prev.get("volume_muted", False)
+            current_fixed  = prev.get("volume_control_fixed", False)
 
         state = {
-            "device":            self.name,
-            "app":               current_app,  # bevar app-navn fra _StatusListener
-            "state":             status.player_state,  # PLAYING, PAUSED, IDLE, BUFFERING, UNKNOWN
-            "title":             status.title,
-            "artist":            status.artist,
-            "album":             status.album_name,
-            "image":             image,
-            "volume":            None,  # volumen kommer fra _StatusListener
-            # Position — adjusted_current_time beregner lokalt som HA gør det
-            "current_time":      status.adjusted_current_time,
-            "duration":          status.duration,
-            "last_updated":      time.time(),
-            # Capabilities — hvad enheden understøtter lige nu
-            "supports_pause":    status.supports_pause,
-            "supports_seek":     status.supports_seek,
-            "supports_next":     status.supports_queue_next,
-            "supports_previous": status.supports_queue_prev,
+            "device":              self.name,
+            "app":                 current_app,
+            "state":               status.player_state,
+            "title":               status.title,
+            "artist":              status.artist,
+            "album":               status.album_name,
+            "image":               image,
+            "volume":              current_volume,   # bevar volumen fra _StatusListener
+            "volume_muted":        current_muted,
+            "volume_control_fixed": current_fixed,
+            "current_time":        status.adjusted_current_time,
+            "duration":            status.duration,
+            "last_updated":        time.time(),
+            "supports_pause":      status.supports_pause,
+            "supports_seek":       status.supports_seek,
+            "supports_next":       status.supports_queue_next,
+            "supports_previous":   status.supports_queue_prev,
         }
         log.info("Cast %s: %s — %s af %s", self.name, status.player_state, status.title, status.artist)
         _notify(self.name, state)
@@ -118,9 +124,11 @@ class _StatusListener:
         with _lock:
             current = dict(_state.get(self.name, _empty_state(self.name)))
 
-        current["volume"] = round(status.volume_level, 2) if status.volume_level is not None else None
-        # Brug chromecast.app_display_name — brugervenligt navn (Spotify, YouTube Music etc.)
-        # Ref: HA's app_name property: return self._chromecast.app_display_name
+        current["volume"]       = round(status.volume_level, 2) if status.volume_level is not None else None
+        current["volume_muted"] = bool(status.volume_muted)
+        # VOLUME_CONTROL_TYPE_FIXED = "attenuation" — Nest Hub Display har fast volumen
+        # Ref: pychromecast/controllers/receiver.py VOLUME_CONTROL_TYPE_FIXED
+        current["volume_control_fixed"] = (getattr(status, "volume_control_type", "") == "attenuation")
         try:
             app_name = self._cc.app_display_name
         except Exception:
@@ -215,6 +223,8 @@ def control_device(device: str, action: str, **kwargs) -> bool:
             mc.seek(max(0, float(kwargs.get("position", 0))))
         elif action == "volume":
             cc.set_volume(float(kwargs.get("level", 0.5)))
+        elif action == "mute":
+            cc.set_volume_muted(bool(kwargs.get("muted", True)))
 
         # Optimistisk state-push — pychromecast sender ikke altid event tilbage
         _push_optimistic(device, action, **kwargs)
@@ -244,6 +254,8 @@ def _push_optimistic(device: str, action: str, **kwargs):
         current["image"] = None
     elif action == "volume":
         current["volume"] = round(float(kwargs.get("level", 0.5)), 2)
+    elif action == "mute":
+        current["volume_muted"] = bool(kwargs.get("muted", True))
     elif action in ("next", "previous"):
         current["state"] = "BUFFERING"
         current["title"] = None

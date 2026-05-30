@@ -219,10 +219,15 @@ function castRenderPanel() {
         <button onclick="castControl('${s.device}','next')" title="Næste">⏭</button>
       </div>
       <div class="cast-vol-row">
-        <span>🔇</span>
-        <input type="range" min="0" max="100" value="${vol}" step="1"
+        ${s.volume_control_fixed ? `<span style="font-size:0.72rem;color:#aaa">Fast lydniveau</span>` : `
+        <button onclick="castToggleMute('${s.device}',${!s.volume_muted})" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:0 4px" title="${s.volume_muted ? 'Slå lyd til' : 'Slå lyd fra'}">
+          ${s.volume_muted ? '🔇' : '🔊'}
+        </button>
+        <input type="range" min="0" max="100" value="${s.volume_muted ? 0 : vol}" step="1"
+          ${s.volume_muted ? 'disabled style="opacity:0.4"' : ''}
           oninput="castSetVolume('${s.device}',this.value/100)">
-        <span>${vol}%</span>
+        <span>${s.volume_muted ? '🔇' : vol + '%'}</span>
+        `}
       </div>
       ${castProgressHtml(s)}
       <div style="padding:0 14px 2px">
@@ -345,7 +350,17 @@ async function castControl(device, action) {
   } else {
     await apiFetch(`/api/cast/${enc}/${action}`, { method: 'POST' });
   }
-}let _volTimer = null;
+}
+
+let _volTimer = null;
+function castToggleMute(device, muted) {
+  apiFetch(`/api/cast/${encodeURIComponent(device)}/mute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ muted })
+  });
+}
+
 function castSetVolume(device, level) {
   clearTimeout(_volTimer);
   _volTimer = setTimeout(() => {

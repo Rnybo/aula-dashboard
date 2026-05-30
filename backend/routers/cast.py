@@ -246,6 +246,13 @@ async def cast_seek_abs(device: str, request: Request):
     if _is_mock(): return {"ok": True}
     return {"ok": control_device(device, "seek_abs", position=position)}
 
+@router_auth.post("/api/cast/{device}/mute")
+async def cast_mute(device: str, request: Request):
+    data = await request.json()
+    muted = bool(data.get("muted", True))
+    if _is_mock(): _mock_control(device, "mute", muted=muted); return {"ok": True}
+    return {"ok": control_device(device, "mute", muted=muted)}
+
 @router_auth.post("/api/cast/{device}/volume")
 async def cast_volume(device: str, request: Request):
     data = await request.json()
