@@ -75,12 +75,23 @@ async def save_settings(request: Request):
             lines.append(f"MITID_IDENTITY{suffix}={i}")
 
     lines = [l for l in lines if not (l.startswith("GOOGLE_CALENDAR_ICS") or l.startswith("GOOGLE_CALENDAR_NAME"))]
-    for idx, cal in enumerate(data.get("google_calendars", [])[:20]):
-        url, name = cal.get("url", "").strip(), cal.get("name", "").strip()
-        if url:
+    new_cals = [c for c in data.get("google_calendars", [])[:20] if c.get("url", "").strip()]
+    if new_cals:
+        # Kun overskriv hvis der faktisk er nye kalendere — undgå at slette ved tom gem
+        for idx, cal in enumerate(new_cals):
+            url, name = cal.get("url", "").strip(), cal.get("name", "").strip()
             suffix = "" if idx == 0 else f"_{idx+1}"
             lines.append(f"GOOGLE_CALENDAR_ICS{suffix}={url}")
             lines.append(f"GOOGLE_CALENDAR_NAME{suffix}={name}")
+    else:
+        # Bevar eksisterende kalendere fra env — ingen overskrivning
+        for idx in range(1, 11):
+            suffix = "" if idx == 1 else f"_{idx}"
+            url  = os.getenv(f"GOOGLE_CALENDAR_ICS{suffix}", "")
+            name = os.getenv(f"GOOGLE_CALENDAR_NAME{suffix}", "")
+            if url:
+                lines.append(f"GOOGLE_CALENDAR_ICS{suffix}={url}")
+                lines.append(f"GOOGLE_CALENDAR_NAME{suffix}={name}")
 
     gcid = data.get("google_client_id", "").strip()
     gcsc = data.get("google_client_secret", "").strip()
