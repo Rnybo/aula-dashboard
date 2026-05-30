@@ -4,7 +4,28 @@ let castState = {};        // device name → state
 let castPanelOpen = false;
 let castWs = null;
 
-// App-ikoner
+const CAST_BTN_ICONS = {
+  spotify: `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424a.623.623 0 01-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.623.623 0 01-.277-1.215c3.809-.87 7.076-.496 9.712 1.115a.623.623 0 01.207.857zm1.223-2.722a.78.78 0 01-1.072.257c-2.687-1.652-6.785-2.131-9.965-1.166a.78.78 0 01-.973-.517.781.781 0 01.517-.972c3.632-1.102 8.147-.568 11.236 1.326a.78.78 0 01.257 1.072zm.105-2.835C14.692 8.95 9.375 8.775 6.297 9.71a.937.937 0 11-.543-1.793c3.532-1.072 9.404-.865 13.115 1.337a.937.937 0 01-.955 1.613z"/></svg>`,
+  dr: `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><text x="3" y="17" font-size="11" font-weight="800" font-family="Arial,sans-serif">DR</text></svg>`,
+  default: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><circle cx="2" cy="20" r="1" fill="white" stroke="none"/></svg>`,
+};
+
+const CAST_BTN_COLORS = {
+  spotify: '#1DB954',
+  dr:      '#E4002B',
+  default: '#333',
+};
+
+function castBtnIconForApp(app) {
+  if (!app) return { icon: CAST_BTN_ICONS.default, color: CAST_BTN_COLORS.default };
+  const a = app.toLowerCase();
+  if (a.includes('spotify'))    return { icon: CAST_BTN_ICONS.spotify, color: CAST_BTN_COLORS.spotify };
+  if (a.includes('dr'))         return { icon: CAST_BTN_ICONS.dr,      color: CAST_BTN_COLORS.dr };
+  return { icon: CAST_BTN_ICONS.default, color: CAST_BTN_COLORS.default };
+}
+
+
+// App-ikoner (emoji til panel)
 const CAST_APP_ICONS = {
   'Spotify':       '🎵',
   'YouTube':       '▶️',
@@ -56,19 +77,23 @@ function castRenderHomeWidget() {
 }
 
 function castRenderButton() {
-  const playing = castActivePlaying().filter(s => s.state === 'PLAYING' || s.state === 'BUFFERING');
+  const active  = castActivePlaying();
+  const playing = active.filter(s => s.state === 'PLAYING' || s.state === 'BUFFERING');
   const btn = document.getElementById('cast-btn');
   if (!btn) return;
-  if (playing.length === 0) {
+  if (active.length === 0) {
     btn.style.display = 'none';
     if (castPanelOpen) castClosePanel();
   } else {
+    const topApp = active.find(s => s.state === 'PLAYING' || s.state === 'BUFFERING')?.app
+                || active[0]?.app;
+    const { icon, color } = castBtnIconForApp(topApp);
     btn.style.display = 'flex';
-    const isPlaying = playing.some(s => s.state === 'PLAYING' || s.state === 'BUFFERING');
-    btn.innerHTML = isPlaying ? '🎵' : '⏸';
-    btn.title = playing.map(s => `${s.device}: ${s.title || s.app}`).join('\n');
-    if (castPanelOpen) castRenderPanel();
+    btn.style.background = color;
+    btn.innerHTML = icon;
+    btn.title = active.map(s => `${s.device}: ${s.title || s.app}`).join('\n');
   }
+  if (castPanelOpen) castRenderPanel();
 }
 
 function castOpenPanel() {
@@ -145,10 +170,9 @@ function castRenderPanel() {
 }
 
 async function castShowTransferMenu(sourceDevice, anchorEl) {
-  const key = window.API_KEY || '';
   let devices = [];
   try {
-    const r = await fetch('/api/cast/devices', { headers: { 'x-api-key': key } });
+    const r = await apiFetch('/api/cast/devices');
     devices = (await r.json()).devices || [];
   } catch(e) {}
 
@@ -158,26 +182,37 @@ async function castShowTransferMenu(sourceDevice, anchorEl) {
 
   const menu = document.createElement('div');
   menu.className = 'cast-transfer-menu';
-  menu.innerHTML = others.map(d =>
-    `<div class="cast-transfer-item" data-device="${d}">${d}</div>`
-  ).join('');
+  menu.innerHTML = others.map(d => {
+    const s = castState[d];
+    const isActive = s && (s.state === 'PLAYING' || s.state === 'BUFFERING' || s.state === 'PAUSED');
+    const label = isActive
+      ? `<span style="flex:1">${d}</span><span style="font-size:0.72rem;color:#4caf50;font-weight:600">Afspiller ✕</span>`
+      : `<span style="flex:1">${d}</span>${CAST_ICON_SVG}`;
+    return `<div class="cast-transfer-item" data-device="${d}" data-active="${isActive}">${label}</div>`;
+  }).join('');
 
   const rect = anchorEl.getBoundingClientRect();
   menu.style.cssText = `position:fixed;bottom:${window.innerHeight - rect.top + 4}px;left:${rect.left}px;
-    background:#fff;border:1px solid var(--border);border-radius:8px;
-    box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:2000;min-width:160px;overflow:hidden`;
+    background:#fff;border:0.5px solid var(--border);border-radius:8px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:2000;min-width:200px;overflow:hidden`;
   document.body.appendChild(menu);
 
   menu.querySelectorAll('.cast-transfer-item').forEach(item => {
     item.addEventListener('click', async () => {
       menu.remove();
+      const target = item.dataset.device;
+      const isActive = item.dataset.active === 'true';
       try {
-        await fetch(`/api/cast/${encodeURIComponent(sourceDevice)}/transfer`, {
-          method: 'POST',
-          headers: { 'x-api-key': key, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ target: item.dataset.device })
-        });
-      } catch(e) { console.warn('Transfer fejl:', e); }
+        if (isActive) {
+          await apiFetch(`/api/cast/${encodeURIComponent(target)}/stop`, { method: 'POST' });
+        } else {
+          await apiFetch(`/api/cast/${encodeURIComponent(sourceDevice)}/transfer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target })
+          });
+        }
+      } catch(e) { console.warn('Cast transfer/stop fejl:', e); }
     });
   });
 
@@ -188,26 +223,23 @@ async function castShowTransferMenu(sourceDevice, anchorEl) {
 
 async function castControl(device, action) {
   const enc = encodeURIComponent(device);
-  const key = window.API_KEY || '';
-  const headers = { 'x-api-key': key, 'Content-Type': 'application/json' };
   if (action === 'seek_back' || action === 'seek_fwd') {
     const delta = action === 'seek_back' ? -10 : 10;
-    await fetch(`/api/cast/${enc}/seek`, { method: 'POST', headers, body: JSON.stringify({ delta }) });
+    await apiFetch(`/api/cast/${enc}/seek`, { method: 'POST', body: JSON.stringify({ delta }), headers: {'Content-Type':'application/json'} });
   } else if (action === 'previous') {
-    await fetch(`/api/cast/${enc}/previous`, { method: 'POST', headers });
+    await apiFetch(`/api/cast/${enc}/previous`, { method: 'POST' });
   } else if (action === 'next') {
-    await fetch(`/api/cast/${enc}/next`, { method: 'POST', headers });
+    await apiFetch(`/api/cast/${enc}/next`, { method: 'POST' });
   } else {
-    await fetch(`/api/cast/${enc}/${action}`, { method: 'POST', headers });
+    await apiFetch(`/api/cast/${enc}/${action}`, { method: 'POST' });
   }
 }let _volTimer = null;
 function castSetVolume(device, level) {
   clearTimeout(_volTimer);
   _volTimer = setTimeout(() => {
-    const key = window.API_KEY || '';
-    fetch(`/api/cast/${encodeURIComponent(device)}/volume`, {
+    apiFetch(`/api/cast/${encodeURIComponent(device)}/volume`, {
       method: 'POST',
-      headers: { 'x-api-key': key, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ level: parseFloat(level) })
     });
   }, 200);
