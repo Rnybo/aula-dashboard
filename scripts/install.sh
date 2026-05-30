@@ -66,7 +66,7 @@ if ! python -c "import fastapi" > /dev/null 2>&1; then
     step "Installerer Python pakker..."
     pip install --quiet --break-system-packages \
         fastapi uvicorn websockets requests beautifulsoup4 python-dotenv \
-        icalendar recurring-ical-events zeroconf httpx paho-mqtt >> "$LOG" 2>&1
+        icalendar recurring-ical-events zeroconf httpx paho-mqtt pychromecast >> "$LOG" 2>&1
     if [ $? -eq 0 ]; then ok "Python pakker installeret"
     else warn "Nogle Python pakker fejlede — tjek $LOG"; fi
 else
@@ -75,6 +75,10 @@ else
     if ! python -c "import paho.mqtt" > /dev/null 2>&1; then
         pip install --quiet --break-system-packages paho-mqtt >> "$LOG" 2>&1 \
             && ok "paho-mqtt installeret" || warn "paho-mqtt fejlede"
+    fi
+    if ! python -c "import pychromecast" > /dev/null 2>&1; then
+        pip install --quiet --break-system-packages pychromecast >> "$LOG" 2>&1 \
+            && ok "pychromecast installeret" || warn "pychromecast fejlede"
     fi
     if ! python -c "import websockets" > /dev/null 2>&1; then
         pip install --quiet --break-system-packages websockets >> "$LOG" 2>&1 \
