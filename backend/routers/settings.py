@@ -12,6 +12,27 @@ router = APIRouter()
 ROOT = Path(__file__).parent.parent.parent
 
 
+@router.get("/api/google-oauth/calendars")
+def google_oauth_calendars_public():
+    """Returnerer Google-kalenderliste til settings-siden — ingen API-nøgle krævet."""
+    import logging
+    import requests as req
+    from backend.google_utils import _get_google_access_token
+    access_token = _get_google_access_token()
+    if not access_token:
+        return []
+    try:
+        items = req.get(
+            "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+            headers={"Authorization": f"Bearer {access_token}"}, timeout=8
+        ).json().get("items", [])
+        return [{"id": c.get("id"), "name": c.get("summaryOverride") or c.get("summary", c.get("id")),
+                 "primary": c.get("primary", False)} for c in items]
+    except Exception as ex:
+        logging.warning(f"calendarList failed: {ex}")
+        return []
+
+
 @router.get("/api/settings")
 def get_settings():
     result = {

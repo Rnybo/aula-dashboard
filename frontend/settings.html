@@ -320,13 +320,14 @@
         } else {
           spotifyStatus.innerHTML = '<span style="color:#aaa">Ikke tilsluttet</span>';
         }
+        const accList = document.getElementById('accounts-list');
+        const calList = document.getElementById('calendars-list');
         accList.innerHTML = '';
         if (s.accounts && s.accounts.length) {
           s.accounts.forEach(a => addAccount(a.username, a.identity));
         } else {
           addAccount();
         }
-        const calList = document.getElementById('calendars-list');
         calList.innerHTML = '';
         if (s.google_calendars && s.google_calendars.length) {
           s.google_calendars.forEach(c => addCalendar(c.url, c.name));

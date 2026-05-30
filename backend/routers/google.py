@@ -90,23 +90,6 @@ def google_calendar(from_date: str = "", to_date: str = ""):
     return events
 
 
-@router.get("/api/google-oauth/calendars")
-def google_oauth_calendars():
-    access_token = _get_google_access_token()
-    if not access_token:
-        return []
-    try:
-        items = req.get(
-            "https://www.googleapis.com/calendar/v3/users/me/calendarList",
-            headers={"Authorization": f"Bearer {access_token}"}, timeout=8
-        ).json().get("items", [])
-        return [{"id": c.get("id"), "name": c.get("summaryOverride") or c.get("summary", c.get("id")),
-                 "primary": c.get("primary", False)} for c in items]
-    except Exception as ex:
-        logging.warning(f"calendarList failed: {ex}")
-        return []
-
-
 @router.get("/api/google-oauth/connect")
 def google_oauth_connect(request: Request):
     client_id = os.getenv("GOOGLE_CLIENT_ID", "")
