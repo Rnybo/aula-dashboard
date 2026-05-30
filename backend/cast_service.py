@@ -86,6 +86,10 @@ class _MediaListener:
             "album":             status.album_name,
             "image":             image,
             "volume":            None,  # volumen kommer fra _StatusListener
+            # Position — adjusted_current_time beregner lokalt som HA gør det
+            "current_time":      status.adjusted_current_time,
+            "duration":          status.duration,
+            "last_updated":      time.time(),
             # Capabilities — hvad enheden understøtter lige nu
             "supports_pause":    status.supports_pause,
             "supports_seek":     status.supports_seek,
@@ -205,6 +209,10 @@ def control_device(device: str, action: str, **kwargs) -> bool:
                 return False
             current = ms.current_time if ms else 0
             mc.seek(max(0, current + float(kwargs.get("delta", 0))))
+        elif action == "seek_abs":
+            if not (ms and ms.supports_seek):
+                return False
+            mc.seek(max(0, float(kwargs.get("position", 0))))
         elif action == "volume":
             cc.set_volume(float(kwargs.get("level", 0.5)))
 

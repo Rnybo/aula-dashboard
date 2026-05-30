@@ -238,6 +238,14 @@ async def cast_seek(device: str, request: Request):
     if _is_mock(): return {"ok": True}
     return {"ok": control_device(device, "seek", delta=delta)}
 
+@router_auth.post("/api/cast/{device}/seek_abs")
+async def cast_seek_abs(device: str, request: Request):
+    """Seek til absolut position i sekunder."""
+    data = await request.json()
+    position = float(data.get("position", 0))
+    if _is_mock(): return {"ok": True}
+    return {"ok": control_device(device, "seek_abs", position=position)}
+
 @router_auth.post("/api/cast/{device}/volume")
 async def cast_volume(device: str, request: Request):
     data = await request.json()

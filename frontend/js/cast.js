@@ -76,9 +76,70 @@ function castRenderHomeWidget() {
   }).join('');
 }
 
+// ── Progress ──────────────────────────────────────────────────────────────────
+let _progressTimer = null;
+
+function castStartProgress() {
+  if (_progressTimer) return;
+  _progressTimer = setInterval(() => {
+    if (!castPanelOpen) return;
+    document.querySelectorAll('.cast-progress-bar').forEach(bar => {
+      const dev = bar.dataset.device;
+      const s = castState[dev];
+      if (!s || !s.duration || s.state !== 'PLAYING') return;
+      const elapsed = s.current_time + (Date.now() / 1000 - s.last_updated);
+      const pct = Math.min(100, (elapsed / s.duration) * 100);
+      bar.style.width = pct + '%';
+      const timeEl = bar.closest('.cast-progress-wrap')?.querySelector('.cast-time');
+      if (timeEl) timeEl.textContent = castFmtTime(elapsed) + ' / ' + castFmtTime(s.duration);
+    });
+  }, 1000);
+}
+
+function castStopProgress() {
+  clearInterval(_progressTimer);
+  _progressTimer = null;
+}
+
+function castFmtTime(sec) {
+  if (!sec || isNaN(sec)) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+function castProgressHtml(s) {
+  if (!s.duration || s.duration <= 0) return '';
+  const elapsed = (s.current_time || 0) + (s.state === 'PLAYING' ? (Date.now() / 1000 - (s.last_updated || 0)) : 0);
+  const pct = Math.min(100, (elapsed / s.duration) * 100);
+  return `
+    <div class="cast-progress-wrap" style="padding:4px 14px 8px">
+      <div style="background:#eee;border-radius:2px;height:3px;cursor:${s.supports_seek ? 'pointer' : 'default'}"
+           onclick="${s.supports_seek ? `castSeekClick(event,'${s.device}',${s.duration})` : ''}">
+        <div class="cast-progress-bar" data-device="${s.device}"
+             style="height:3px;background:#111;border-radius:2px;width:${pct}%;transition:width 0.5s linear"></div>
+      </div>
+      <div class="cast-time" style="font-size:0.68rem;color:#aaa;margin-top:3px;text-align:right">
+        ${castFmtTime(elapsed)} / ${castFmtTime(s.duration)}
+      </div>
+    </div>`;
+}
+
+function castSeekClick(evt, device, duration) {
+  const bar = evt.currentTarget;
+  const rect = bar.getBoundingClientRect();
+  const pct = (evt.clientX - rect.left) / rect.width;
+  const target_time = pct * duration;
+  apiFetch(`/api/cast/${encodeURIComponent(device)}/seek_abs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ position: target_time })
+  });
+}
+
+
 function castRenderButton() {
   const active  = castActivePlaying();
-  console.log('[cast] renderButton active:', active.map(s => s.device + '=' + s.state));
   const btn = document.getElementById('cast-btn');
   if (!btn) return;
   if (active.length === 0) {
@@ -101,12 +162,14 @@ function castOpenPanel() {
   castPanelOpen = true;
   const panel = document.getElementById('cast-panel');
   if (panel) { panel.style.display = 'block'; castRenderPanel(); }
+  castStartProgress();
 }
 
 function castClosePanel() {
   castPanelOpen = false;
   const panel = document.getElementById('cast-panel');
   if (panel) panel.style.display = 'none';
+  castStopProgress();
 }
 
 function castTogglePanel() {
@@ -161,6 +224,7 @@ function castRenderPanel() {
           oninput="castSetVolume('${s.device}',this.value/100)">
         <span>${vol}%</span>
       </div>
+      ${castProgressHtml(s)}
       <div style="padding:0 14px 2px">
         <button class="cast-transfer-btn" onclick="castShowTransferMenu('${s.device}',this)">
           ${CAST_ICON_SVG} Afspil på en anden enhed
