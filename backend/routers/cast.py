@@ -82,41 +82,49 @@ async def _broadcast(data: str):
             pass
 
 
+_mock_lock = threading.Lock()
+
+
 def _mock_simulate():
     """Simulerer sang-skift og pause-toggle hvert 8. sekund."""
     while True:
         time.sleep(8)
-        # Stuen: næste sang
-        dev = _MOCK_DEVICES["Stuen"]
-        if dev["state"] == "PLAYING":
-            dev["track_idx"] += 1
-            _push("Stuen")
-        # Køkken Hub: toggle pause/play
-        dev2 = _MOCK_DEVICES["Køkken Hub"]
-        if dev2["state"] != "IDLE":
-            dev2["state"] = "PLAYING" if dev2["state"] == "PAUSED" else "PAUSED"
-            _push("Køkken Hub")
+        with _mock_lock:
+            # Stuen: næste sang — kun hvis faktisk PLAYING
+            dev = _MOCK_DEVICES["Stuen"]
+            if dev["state"] == "PLAYING":
+                dev["track_idx"] += 1
+                _push("Stuen")
+            # Køkken Hub: toggle kun hvis ikke manuelt styret — reset til PLAYING/PAUSED
+            dev2 = _MOCK_DEVICES["Køkken Hub"]
+            if dev2["state"] == "PLAYING":
+                dev2["state"] = "PAUSED"
+                _push("Køkken Hub")
+            elif dev2["state"] == "PAUSED":
+                dev2["state"] = "PLAYING"
+                _push("Køkken Hub")
 
 
 def _mock_control(device: str, action: str, **kwargs):
     """Håndter kontrol-handlinger på mock-enheder."""
     if device not in _MOCK_DEVICES:
         return
-    dev = _MOCK_DEVICES[device]
-    if action == "pause":
-        dev["state"] = "PAUSED"
-    elif action == "play":
-        dev["state"] = "PLAYING"
-    elif action == "stop":
-        dev["state"] = "IDLE"
-    elif action == "next":
-        dev["track_idx"] += 1
-        dev["state"] = "PLAYING"
-    elif action == "previous":
-        dev["track_idx"] = max(0, dev["track_idx"] - 1)
-        dev["state"] = "PLAYING"
-    elif action == "volume":
-        dev["volume"] = round(float(kwargs.get("level", 0.5)), 2)
+    with _mock_lock:
+        dev = _MOCK_DEVICES[device]
+        if action == "pause":
+            dev["state"] = "PAUSED"
+        elif action == "play":
+            dev["state"] = "PLAYING"
+        elif action == "stop":
+            dev["state"] = "IDLE"
+        elif action == "next":
+            dev["track_idx"] += 1
+            dev["state"] = "PLAYING"
+        elif action == "previous":
+            dev["track_idx"] = max(0, dev["track_idx"] - 1)
+            dev["state"] = "PLAYING"
+        elif action == "volume":
+            dev["volume"] = round(float(kwargs.get("level", 0.5)), 2)
     _push(device)
 
 

@@ -78,7 +78,7 @@ function castRenderHomeWidget() {
 
 function castRenderButton() {
   const active  = castActivePlaying();
-  const playing = active.filter(s => s.state === 'PLAYING' || s.state === 'BUFFERING');
+  console.log('[cast] renderButton active:', active.map(s => s.device + '=' + s.state));
   const btn = document.getElementById('cast-btn');
   if (!btn) return;
   if (active.length === 0) {
@@ -90,6 +90,7 @@ function castRenderButton() {
     const { icon, color } = castBtnIconForApp(topApp);
     btn.style.display = 'flex';
     btn.style.background = color;
+    btn.style.opacity = active.some(s => s.state === 'PLAYING' || s.state === 'BUFFERING') ? '1' : '0.6';
     btn.innerHTML = icon;
     btn.title = active.map(s => `${s.device}: ${s.title || s.app}`).join('\n');
   }
@@ -259,23 +260,29 @@ function castStartWS() {
   castWs.onclose = () => {
     castWs = null;
     setTimeout(async () => {
-      // Genindlæs state ved reconnect så ikonet genopstår
       try {
         const r = await apiFetch('/api/cast/state');
-        castState = await r.json() || {};
-        castRenderButton();
+        const fresh = await r.json();
+        if (fresh && Object.keys(fresh).length > 0) {
+          castState = fresh;
+          castRenderButton();
+        }
       } catch(e) {}
       castStartWS();
     }, 5000);
   };
-  castWs.onerror = () => { castWs && castWs.close(); };
+  castWs.onerror = e => { console.warn('[cast] WS error:', e); castWs && castWs.close(); };
 }
 
 async function castInit() {
   try {
     const r = await apiFetch('/api/cast/state');
-    castState = await r.json() || {};
+    const data = await r.json();
+    console.log('[cast] init state:', JSON.stringify(data));
+    castState = data || {};
     castRenderButton();
-  } catch(e) {}
+  } catch(e) {
+    console.warn('[cast] init failed:', e);
+  }
   castStartWS();
 }
