@@ -181,11 +181,6 @@ function castTogglePanel() {
   castPanelOpen ? castClosePanel() : castOpenPanel();
 }
 
-const CAST_ICON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/>
-  <circle cx="2" cy="20" r="1" fill="currentColor"/>
-</svg>`;
-
 function castRenderPanel() {
   const panel = document.getElementById('cast-panel');
   if (!panel) return;
@@ -235,120 +230,8 @@ function castRenderPanel() {
         `}
       </div>
       ${castProgressHtml(s)}
-      <div style="padding:0 14px 2px">
-        <button class="cast-transfer-btn" onclick="castShowTransferMenu('${s.device}',this)">
-          ${CAST_ICON_SVG} Afspil på en anden enhed
-        </button>
-      </div>
     </div>`;
   }).join('');
-}
-
-async function castShowTransferMenu(sourceDevice, anchorEl) {
-  const srcState = castState[sourceDevice] || {};
-  const isSpotify = (srcState.app || '').toLowerCase().includes('spotify');
-
-  let allDevices = [];
-  let spotifyDevices = [];
-
-  try {
-    const r = await apiFetch('/api/cast/devices');
-    allDevices = (await r.json()).devices || [];
-  } catch(e) {}
-
-  if (isSpotify) {
-    try {
-      const r = await apiFetch('/api/spotify/devices');
-      spotifyDevices = (await r.json()).devices || [];
-    } catch(e) {}
-  }
-
-  document.querySelectorAll('.cast-transfer-menu').forEach(el => el.remove());
-  if (allDevices.length === 0 && spotifyDevices.length === 0) return;
-
-  const menu = document.createElement('div');
-  menu.className = 'cast-transfer-menu';
-  let html = '';
-
-  if (isSpotify && spotifyDevices.length > 0) {
-    // Spotify-enheder med direkte ID
-    html += `<div style="padding:6px 12px 4px;font-size:0.68rem;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.05em">Spotify-enheder</div>`;
-    html += spotifyDevices.map(d => {
-      const isActive = d.is_active;
-      const right = isActive
-        ? `<span style="font-size:0.72rem;color:#1DB954;font-weight:700">▶ Nu</span>`
-        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="#1DB954"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424a.623.623 0 01-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.623.623 0 01-.277-1.215c3.809-.87 7.076-.496 9.712 1.115a.623.623 0 01.207.857zm1.223-2.722a.78.78 0 01-1.072.257c-2.687-1.652-6.785-2.131-9.965-1.166a.78.78 0 01-.973-.517.781.781 0 01.517-.972c3.632-1.102 8.147-.568 11.236 1.326a.78.78 0 01.257 1.072zm.105-2.835C14.692 8.95 9.375 8.775 6.297 9.71a.937.937 0 11-.543-1.793c3.532-1.072 9.404-.865 13.115 1.337a.937.937 0 01-.955 1.613z"/></svg>`;
-      return `<div class="cast-transfer-item" data-spotify-id="${d.id}" data-type="spotify" data-active="${isActive}">
-        <span style="margin-right:6px">🎵</span><span style="flex:1">${d.name}</span>${right}
-      </div>`;
-    }).join('');
-  }
-
-  // Altid vis Cast-enheder — inkl. Nest-enheder der ikke er aktive i Spotify
-  if (allDevices.length > 0) {
-    html += `<div style="padding:${isSpotify && spotifyDevices.length > 0 ? '8px' : '6px'} 12px 4px;font-size:0.68rem;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.05em;${isSpotify && spotifyDevices.length > 0 ? 'border-top:0.5px solid var(--border)' : ''}">Cast-enheder</div>`;
-    html += allDevices.map(d => {
-      const s = castState[d];
-      const isSource = d === sourceDevice;
-      const isActive = s && (s.state === 'PLAYING' || s.state === 'BUFFERING' || s.state === 'PAUSED');
-      const appIcon = castAppIcon(s?.app);
-      let right = '';
-      if (isSource)      right = `<span style="font-size:0.72rem;color:#1DB954;font-weight:700">▶ Nu</span>`;
-      else if (isActive) right = `<span style="font-size:0.72rem;color:#ff9800;font-weight:600">Afspiller ✕</span>`;
-      else               right = CAST_ICON_SVG;
-      return `<div class="cast-transfer-item" data-device="${d}" data-type="cast" data-source="${isSource}" data-active="${isActive}">
-        <span style="margin-right:6px">${appIcon}</span><span style="flex:1">${d}</span>${right}
-      </div>`;
-    }).join('');
-  }
-
-  menu.innerHTML = html;
-
-  const rect = anchorEl.getBoundingClientRect();
-  menu.style.cssText = `position:fixed;bottom:${window.innerHeight - rect.top + 4}px;right:${window.innerWidth - rect.right}px;
-    background:#fff;border:0.5px solid var(--border);border-radius:8px;
-    box-shadow:0 4px 16px rgba(0,0,0,0.15);z-index:2000;min-width:220px;overflow:hidden`;
-  document.body.appendChild(menu);
-
-  menu.querySelectorAll('.cast-transfer-item').forEach(item => {
-    item.addEventListener('click', async () => {
-      menu.remove();
-      const type     = item.dataset.type;
-      const isSource = item.dataset.source === 'true';
-      const isActive = item.dataset.active === 'true';
-      try {
-        if (type === 'spotify') {
-          // Direkte Spotify device ID — transfer via Spotify Connect
-          await apiFetch(`/api/cast/${encodeURIComponent(sourceDevice)}/transfer`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              target: item.querySelector('span:nth-child(2)').textContent.trim(),
-              spotify_device_id: item.dataset.spotifyId
-            })
-          });
-        } else if (isSource) {
-          // Klik på kildeenheden selv → stop den
-          await apiFetch(`/api/cast/${encodeURIComponent(item.dataset.device)}/stop`, { method: 'POST' });
-        } else {
-          // Inaktiv eller aktiv Cast-enhed → overfør til den
-          const res = await apiFetch(`/api/cast/${encodeURIComponent(sourceDevice)}/transfer`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target: item.dataset.device })
-          });
-          const data = await res.json();
-          if (!data.ok) {
-            setTimeout(() => alert('⚠️ ' + (data.detail || 'Transfer fejlede')), 100);
-          }
-        }
-      } catch(e) { console.warn('Cast transfer/stop fejl:', e); }
-    });
-  });
-
-  setTimeout(() => document.addEventListener('click', function close() {
-    menu.remove(); document.removeEventListener('click', close);
-  }), 50);
 }
 
 async function castControl(device, action) {
