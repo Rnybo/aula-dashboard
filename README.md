@@ -136,6 +136,31 @@ home-dashboard/
 └── .env.example
 ```
 
+## Kendte begrænsninger
+
+### iCloud-brugere — lokal synkronisering
+
+Events oprettet direkte i dashboardet ("Gem til Familieoverblik") synkroniseres automatisk til Google Calendar via OAuth. iCloud understøttes **ikke** som synkroniseringsmål — CalDAV-skrivning kræver en separat integration der endnu ikke er implementeret.
+
+**Anbefalet workaround for iCloud-brugere:**
+
+Brug Google Calendar som mellemled ("hub"). Google Calendar kan vises direkte i iOS Kalender og iCloud-appen, og events oprettet i dashboardet synkroniseres til Google og vises der automatisk.
+
+1. Opret en Google-konto (eller brug eksisterende)
+2. Tilføj Google Calendar til iOS: **Indstillinger → Kalender → Konti → Tilføj konto → Google**
+3. Sæt Google Calendar op i dashboardet (se Google Calendar Setup herunder)
+4. Events oprettet i dashboardet synkroniseres til Google og vises automatisk i iOS Kalender
+
+**Alternativt** — hvis du kun vil *læse* en iCloud-kalender i dashboardet (uden at skrive tilbage):
+1. Åbn Kalender på Mac eller iOS
+2. Vælg kalender → Del → aktivér **Offentlig kalender** → kopiér URL
+3. Erstat `webcal://` med `https://`
+4. Tilføj URL som `GOOGLE_CALENDAR_ICS` i `.env`
+
+ICS-læsning virker fuldt ud for alle kilder (Google, iCloud, Outlook, Rejseplanen m.fl.).
+
+---
+
 ## API Endpoints
 
 | Endpoint | Description |
