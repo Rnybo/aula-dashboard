@@ -20,6 +20,95 @@ router = APIRouter()
 COLORS = ["#e53935", "#8e24aa", "#1e88e5", "#43a047", "#fb8c00"]
 FAELLES_COLOR = "#e53935"  # Alle fælleskalender-events vises med samme røde farve
 
+_LOCAL_TZ = datetime.timezone(datetime.timedelta(hours=1))  # Fallback hvis systemets tzdata mangler
+
+
+def _normalize_vevent(component, cal_meta: dict, local_lookup: dict) -> dict | None:
+    """
+    Konverterer et VEVENT-komponent til et garanteret konsistent event-dict.
+
+    Håndterer:
+    - All-day events (DATE) vs tidsbaserede (DATETIME)
+    - Manglende DTEND → DURATION fallback → same-day fallback
+    - Naive datetimes (ingen tzinfo) → antager lokal tidszone
+    - DURATION på tidsbaserede events (f.eks. iCloud)
+    - Encoding af SUMMARY/LOCATION (bytes → str)
+
+    Returnerer None hvis eventet ikke kan parses.
+    """
+    try:
+        dtstart = component.get("DTSTART")
+        if not dtstart:
+            return None
+
+        val = dtstart.dt
+        all_day = not hasattr(val, "hour")
+
+        # ── Start ISO ──────────────────────────────────────────────────────────
+        if all_day:
+            start_iso = val.isoformat()          # "2026-06-15"
+        else:
+            if val.tzinfo is None:               # naive datetime — giv lokal tz
+                val = val.replace(tzinfo=_LOCAL_TZ)
+            start_iso = val.astimezone(datetime.timezone.utc).isoformat()
+
+        # ── End ISO ────────────────────────────────────────────────────────────
+        dtend = component.get("DTEND")
+        duration = component.get("DURATION")
+
+        if dtend:
+            end_val = dtend.dt
+        elif duration:
+            # DURATION kan forekomme i stedet for DTEND (iCloud, Outlook)
+            dur = duration.dt if isinstance(duration.dt, datetime.timedelta) else datetime.timedelta(0)
+            end_val = val + dur
+        else:
+            # Ingen end og ingen duration — all-day = næste dag, tidsbaseret = +1 time
+            if all_day:
+                end_val = val + datetime.timedelta(days=1)
+            else:
+                end_val = val + datetime.timedelta(hours=1)
+
+        if all_day:
+            end_iso = end_val.isoformat() if not hasattr(end_val, "hour") else end_val.date().isoformat()
+        else:
+            if hasattr(end_val, "tzinfo"):
+                if end_val.tzinfo is None:
+                    end_val = end_val.replace(tzinfo=_LOCAL_TZ)
+                end_iso = end_val.astimezone(datetime.timezone.utc).isoformat()
+            else:
+                # end_val er en date (ikke datetime) — konverter
+                end_iso = datetime.datetime.combine(end_val, datetime.time.min, tzinfo=_LOCAL_TZ).isoformat()
+
+        # ── Felter ────────────────────────────────────────────────────────────
+        def _str(field: str, fallback: str = "") -> str:
+            v = component.get(field)
+            if v is None:
+                return fallback
+            s = str(v)
+            # icalendar returnerer sommetider bytes ved encoding-fejl
+            if isinstance(v, bytes):
+                s = v.decode("utf-8", errors="replace")
+            return s.strip() or fallback
+
+        uid = _str("UID")
+        ext_cals = local_lookup.get(uid, "") if uid else ""
+
+        return {
+            "title":                    _str("SUMMARY", "(ingen titel)"),
+            "start":                    start_iso,
+            "end":                      end_iso,
+            "allDay":                   all_day,
+            "owner":                    cal_meta["name"],
+            "color":                    cal_meta["color"],
+            "location":                 _str("LOCATION"),
+            "familieoverblik_calendars": ext_cals,
+        }
+
+    except Exception as ex:
+        logging.debug("VEVENT normalize fejl (springer over): %s", ex)
+        return None
+
 
 @router.get("/api/google-calendar")
 def google_calendar(from_date: str = "", to_date: str = ""):
@@ -60,31 +149,9 @@ def google_calendar(from_date: str = "", to_date: str = ""):
             gcal = Calendar.from_ical(r.content)
             for component in recurring_ical_events.of(gcal).between(date_from, date_to):
                 if component.name != "VEVENT": continue
-                dtstart = component.get("DTSTART")
-                dtend   = component.get("DTEND")
-                if not dtstart: continue
-                val     = dtstart.dt
-                all_day = not hasattr(val, "hour")
-                start_iso = val.isoformat() if all_day else val.astimezone().isoformat()
-                end_val   = dtend.dt if dtend else val
-                end_iso   = end_val.isoformat() if all_day else (
-                    end_val.astimezone().isoformat() if hasattr(end_val, "hour") else end_val.isoformat()
-                )
-                ext_cals = ""
-                # Check if this is a locally created event via familieoverblik
-                uid = str(component.get("UID", ""))
-                if uid and uid in local_lookup:
-                    ext_cals = local_lookup[uid]
-                events.append({
-                    "title":    str(component.get("SUMMARY", "(ingen titel)")),
-                    "start":    start_iso,
-                    "end":      end_iso,
-                    "allDay":   all_day,
-                    "owner":    cal["name"],
-                    "color":    cal["color"],
-                    "location": str(component.get("LOCATION", "")),
-                    "familieoverblik_calendars": ext_cals,
-                })
+                event = _normalize_vevent(component, cal, local_lookup)
+                if event:
+                    events.append(event)
         except Exception as ex:
             logging.warning(f"ICS fetch failed for {cal['name']}: {ex}")
 
