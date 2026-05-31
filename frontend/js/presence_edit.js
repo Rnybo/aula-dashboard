@@ -46,10 +46,15 @@ async function openPresenceEdit(childId, date, entryTime, exitTime, exitWith, co
   document.getElementById('presence-edit-comment').value  = comment    || '';
   document.getElementById('presence-edit-repeat').value   = 'never';
 
-  // Status reset
-  const statusEl = document.getElementById('presence-edit-status');
-  statusEl.style.display = 'none';
-  statusEl.textContent = '';
+  // Session-tjek — deaktivér Gem hvis Aula ikke er logget ind
+  const saveBtn = document.getElementById('presence-edit-save');
+  const noSession = sessionWasExpired;
+  saveBtn.disabled = noSession;
+  if (noSession) {
+    _peShowStatus('Log ind i Aula for at gemme ændringer', '#fff3cd', '#856404');
+  } else {
+    document.getElementById('presence-edit-status').style.display = 'none';
+  }
 
   // Søskende-checkboxes (alle andre børn end det aktive)
   const siblings = CHILDREN.filter(c => c.id !== childId);
