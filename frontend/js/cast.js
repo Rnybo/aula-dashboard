@@ -6,7 +6,7 @@ let castWs = null;
 
 const CAST_BTN_ICONS = {
   spotify: `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424a.623.623 0 01-.857.207c-2.348-1.435-5.304-1.76-8.785-.964a.623.623 0 01-.277-1.215c3.809-.87 7.076-.496 9.712 1.115a.623.623 0 01.207.857zm1.223-2.722a.78.78 0 01-1.072.257c-2.687-1.652-6.785-2.131-9.965-1.166a.78.78 0 01-.973-.517.781.781 0 01.517-.972c3.632-1.102 8.147-.568 11.236 1.326a.78.78 0 01.257 1.072zm.105-2.835C14.692 8.95 9.375 8.775 6.297 9.71a.937.937 0 11-.543-1.793c3.532-1.072 9.404-.865 13.115 1.337a.937.937 0 01-.955 1.613z"/></svg>`,
-  dr: `<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><text x="3" y="17" font-size="11" font-weight="800" font-family="Arial,sans-serif">DR</text></svg>`,
+  dr: `<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="7" fill="#000000"/><text x="50%" y="58%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="19" letter-spacing="1" fill="#ffffff">DR</text></svg>`,
   default: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><path d="M2 16.1A5 5 0 0 1 5.9 20M2 12.05A9 9 0 0 1 9.95 20M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/><circle cx="2" cy="20" r="1" fill="white" stroke="none"/></svg>`,
 };
 
@@ -30,7 +30,7 @@ const CAST_APP_ICONS = {
   'Spotify':       '🎵',
   'YouTube':       '▶️',
   'YouTube Music': '🎶',
-  'DR':            '📻',
+  'DR':            `<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="7" fill="#000000"/><text x="50%" y="58%" dominant-baseline="middle" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="19" letter-spacing="1" fill="#ffffff">DR</text></svg>`,
   'Netflix':       '🎬',
   'Default Media Receiver': '🔊',
 };
