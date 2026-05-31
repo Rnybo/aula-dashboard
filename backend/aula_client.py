@@ -379,3 +379,44 @@ class AulaClient:
         ids_param = "".join(f"&filterInstitutionProfileIds[]={i}" for i in inst_profile_ids)
         data = self._get("presence.getPresenceTemplates", f"{ids_param}&fromDate={from_date}&toDate={to_date}")
         return data.get("data", {}).get("presenceWeekTemplates", []) or []
+
+    def get_pickup_responsibles(self, child_ids: list) -> list:
+        """Henter relatedPersons og pickupSuggestions per barn."""
+        ids_param = "".join(f"&uniStudentIds[]={i}" for i in child_ids)
+        data = self._get("presence.getPickupResponsibles", ids_param)
+        return data.get("data", []) or []
+
+    def update_presence_template(
+        self,
+        institution_profile_id: int,
+        by_date: str,
+        entry_time: str,
+        exit_time: str,
+        exit_with: str,
+        comment: str = "",
+        repeat_pattern: str = "never",
+    ) -> bool:
+        """
+        Opdaterer presence template for ét barn på én dato.
+        repeat_pattern: 'never' = kun denne dag, 'weekly' = ugentligt
+        """
+        import datetime as dt
+        # expiresAt = 4 uger frem (bruges ved 'never', ignoreres af Aula ved 'weekly')
+        expires_at = (dt.date.fromisoformat(by_date) + dt.timedelta(weeks=4)).isoformat() + "T00:00:00+00:00"
+        body = {
+            "institutionProfileId": institution_profile_id,
+            "byDate": by_date,
+            "presenceActivity": {
+                "activityType": 0,
+                "pickup": {
+                    "entryTime": entry_time,
+                    "exitTime":  exit_time,
+                    "exitWith":  exit_with,
+                },
+            },
+            "comment":       comment,
+            "repeatPattern": repeat_pattern,
+            "expiresAt":     expires_at,
+        }
+        resp = self._post("presence.updatePresenceTemplate", body)
+        return resp.get("status", {}).get("code") == 0

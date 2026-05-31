@@ -472,13 +472,24 @@
           const presenceEvents = [];
           if (tpl && !tpl.isOnVacation) {
             const ds = dateStr;
+            // Data til edit-modal — JSON-encoded som attribut
+            const tplData = JSON.stringify({
+              childId:   child.id,
+              date:      ds,
+              entryTime: tpl.entryTime || '',
+              exitTime:  tpl.exitTime  || '',
+              exitWith:  tpl.exitWith  || '',
+              comment:   tpl.comment   || '',
+            }).replace(/'/g, '&#39;');
             if (tpl.entryTime) presenceEvents.push({
               _presence: true, _label: `🧒🎒 ${tpl.entryTime.substring(0,5)}`, _style: `border-left-color:${tabColor};color:${tabColor}`,
               start: `${ds}T${tpl.entryTime}`, end: `${ds}T${tpl.entryTime.replace(/(\d+):(\d+)/,(_,h,m)=>String(parseInt(h)*60+parseInt(m)+30).replace(/(\d+)/,n=>String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')))}`,
+              _tplData: tplData,
             });
             if (tpl.exitTime) presenceEvents.push({
               _presence: true, _label: `🏠 ${tpl.exitTime.substring(0,5)}${tpl.exitWith?' · '+tpl.exitWith:''}`, _style: `border-left-color:${tabColor};color:${tabColor}`,
               start: `${ds}T${tpl.exitTime}`, end: null,
+              _tplData: tplData,
             });
           }
 

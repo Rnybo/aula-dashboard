@@ -122,6 +122,39 @@ def presence(inst_profile_ids: str = "", from_date: str = "", to_date: str = "")
     return aula_call(lambda: _get_client().get_presence(ids, from_date or None, to_date or None))
 
 
+@router.get("/api/presence/pickup-responsibles")
+def pickup_responsibles(child_ids: str = ""):
+    ids = [int(i) for i in child_ids.split(",") if i]
+    return aula_call(lambda: _get_client().get_pickup_responsibles(ids))
+
+
+@router.post("/api/presence/update")
+async def update_presence(request: Request):
+    data = await request.json()
+    updates = data.get("updates", [])
+    if not updates:
+        raise HTTPException(status_code=400, detail="No updates provided")
+    results = []
+    client = _get_client()
+    for u in updates:
+        try:
+            ok = client.update_presence_template(
+                institution_profile_id=int(u["childId"]),
+                by_date=u["date"],
+                entry_time=u.get("entryTime", ""),
+                exit_time=u.get("exitTime", ""),
+                exit_with=u.get("exitWith", ""),
+                comment=u.get("comment", ""),
+                repeat_pattern=u.get("repeatPattern", "never"),
+            )
+            results.append({"childId": u["childId"], "ok": ok})
+        except PermissionError:
+            raise HTTPException(status_code=401, detail="Session expired")
+        except Exception as e:
+            results.append({"childId": u["childId"], "ok": False, "error": str(e)})
+    return results
+
+
 @router.get("/api/calendar")
 def calendar(inst_profile_ids: str = "", from_date: str = "", to_date: str = ""):
     ids = [int(i) for i in inst_profile_ids.split(",") if i]

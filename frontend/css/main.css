@@ -434,3 +434,52 @@
 .cast-vol-row { display:flex; align-items:center; gap:8px; padding:4px 14px 8px; }
 .cast-vol-row input[type=range] { flex:1; accent-color:#111; height:3px; }
 .cast-vol-row span { font-size:0.72rem; color:#aaa; }
+
+/* ── Presence edit modal ─────────────────────────────────────────────────── */
+#presence-edit-overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45);
+  z-index:1100; align-items:center; justify-content:center;
+}
+#presence-edit-overlay.open { display:flex; }
+#presence-edit-modal {
+  background:#fff; border-radius:14px; padding:22px 20px 18px;
+  width:min(94vw, 380px); box-shadow:0 8px 32px rgba(0,0,0,0.18);
+  position:relative; max-height:90vh; overflow-y:auto;
+}
+#presence-edit-modal h2 { margin:0 0 4px; font-size:1.05rem; }
+#presence-edit-close {
+  position:absolute; top:12px; right:14px; background:none; border:none;
+  font-size:1.1rem; cursor:pointer; color:#999; padding:2px 6px;
+}
+.presence-edit-row {
+  display:flex; flex-direction:column; gap:4px; margin-bottom:12px;
+}
+.presence-edit-row label {
+  font-size:0.73rem; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.04em;
+}
+.presence-edit-row input[type=time],
+.presence-edit-row input[type=text],
+.presence-edit-row textarea,
+.presence-edit-row select {
+  border:1px solid #ddd; border-radius:7px; padding:7px 10px;
+  font-size:0.88rem; font-family:inherit; color:#222;
+  background:#fafafa; outline:none; transition:border .15s;
+}
+.presence-edit-row input:focus,
+.presence-edit-row textarea:focus,
+.presence-edit-row select:focus { border-color:#1e88e5; background:#fff; }
+.presence-edit-row textarea { resize:vertical; min-height:48px; }
+#presence-edit-save {
+  background:#1e88e5; color:#fff; border:none; border-radius:8px;
+  padding:9px 20px; font-size:0.88rem; font-weight:700; cursor:pointer;
+  flex:1; transition:background .15s;
+}
+#presence-edit-save:hover { background:#1565c0; }
+#presence-edit-save:disabled { background:#aaa; cursor:default; }
+.presence-sibling-label {
+  display:flex; align-items:center; gap:8px; font-size:0.85rem;
+  padding:5px 0; cursor:pointer;
+}
+.presence-sibling-label input[type=checkbox] {
+  width:16px; height:16px; accent-color:#1e88e5; flex-shrink:0;
+}
